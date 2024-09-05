@@ -1,0 +1,214 @@
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { PrismaService } from './prisma.service';
+import { PlayerDto } from './dto/player-dto';
+import { PokemonTypeEntity } from './pokemon-api.controller';
+import { PokemonTeamDto } from './dto/pokemon-team-dto';
+import { PokemonDto } from './dto/pokemon-dto';
+import { StatsDto } from './dto/stats-dto';
+
+
+@Injectable()
+export class PokemonApiService {
+
+  constructor(private prismaService: PrismaService) { }
+
+  async createPlayer(playerDto: PlayerDto) {
+    try {
+      await this.prismaService.player.create({ data: playerDto })
+    } catch (error) {
+      console.log(error)
+    }
+  }
+  async createTeam(pokemonTeamDto: PokemonTeamDto) {
+    try {
+      await this.prismaService.pokemonTeam.create({ data: pokemonTeamDto })
+    } catch (error) {
+      console.log(error)
+    }
+  }
+  async createPokemonAndStats(pokemonData: any) {
+    const statsDto: StatsDto = pokemonData[1];
+    const pokemonDto: PokemonDto = pokemonData[0];
+    try {
+      await this.prismaService.$transaction(async (prisma) => {
+        const pokemons = await prisma.pokemon.findMany({ where: { teamId: pokemonData[0].teamId } });
+        if (pokemons.length >= 5) throw new HttpException('Maximum number of pokemons reached', HttpStatus.BAD_REQUEST)
+        const createdStats = await prisma.stats.create({ data: statsDto });
+        pokemonDto.statsId = createdStats.id;
+        await prisma.pokemon.create({ data: pokemonDto });
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+  async findAll() {
+    try {
+      const players = await this.prismaService.player.findMany();
+      const data = []
+      for (let i = 0; i < players.length; i++) {
+        data.push(await this.findOne(players[i].id))
+      }
+      return data
+    } catch (error) {
+      console.log(error)
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+  }
+  async findOne(id: number) {
+    try {
+      const playerData = await this.prismaService.player.findUnique({ where: { id: id } });
+      const teams = await this.prismaService.pokemonTeam.findMany({ where: { playerId: id } });
+      const pokemonsArray = await Promise.all(teams.map(async (team) => await this.prismaService.pokemon.findMany({ where: { teamId: team.id } })));
+      const pokemonsData = pokemonsArray.flat(); // Aplanar el array de arrays
+      const stats = await Promise.all(pokemonsData.map(async (pokemon) => await this.prismaService.stats.findUnique({ where: { id: pokemon.statsId } })));
+      if (!playerData) {
+        throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+      }
+      const pokemon = pokemonsData.map((poke, index) => ({
+        ...poke,
+        stats: stats[index]
+      }));
+      const teamsPokemon = teams.map(team => ({
+        ...team,
+        pokemons: pokemon.filter(poke => poke.teamId === team.id)
+      }));
+      const player = [];
+      player.push({
+        ...player,
+        teams: teamsPokemon
+      })
+      return { player };
+    } catch (error) {
+      console.log(error);
+      if (error.status === 404) {
+        throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+
+  async updateAll(id: number, playerDto: any, pokemonEntity: PokemonTypeEntity) {
+    try {
+      switch (pokemonEntity) {
+        case 'all': {
+          this.updateAllEntities(id, playerDto)
+          break
+        }
+        case 'player': {
+          await this.prismaService.player.update({ where: { id: id }, data: playerDto })
+          break
+        }
+        case 'pokemonTeam': {
+          await this.prismaService.pokemonTeam.update({ where: { id: id }, data: playerDto })
+          break
+        }
+        case 'pokemon': {
+          await this.prismaService.pokemon.update({ where: { id: id }, data: playerDto })
+          break
+        }
+        case 'stats': {
+          await this.prismaService.stats.update({ where: { id: id }, data: playerDto })
+          break
+        }
+        default:
+          return " Invalid pokemonEntity. Possible values are: 'all', 'player', 'pokemonTeam', 'pokemon', or 'stats'"
+      }
+    } catch (error) {
+      console.log(error)
+      if (error.name === "PrismaClientValidationError") throw new HttpException('Invalid data', HttpStatus.UNPROCESSABLE_ENTITY);
+      return error
+    }
+  }
+
+  async removePokemonTeam(id: number) {
+    try {
+      await this.prismaService.$transaction(async (prisma) => {
+        // Eliminar todos los Pokémon del equipo
+        const pokemons = await prisma.pokemon.findMany({
+          where: {
+            teamId: id,
+          },
+        });
+        // Eliminar los Pokémon primero
+        await prisma.pokemon.deleteMany({
+          where: {
+            teamId: id,
+          },
+        });
+        // Luego eliminar las estadísticas asociadas
+        await Promise.all(pokemons.map(async (pokemon) => {
+          await prisma.stats.delete({
+            where: {
+              id: pokemon.statsId,
+            },
+          });
+        }));
+        // Finalmente, eliminar el equipo de Pokémon
+        await prisma.pokemonTeam.delete({
+          where: {
+            id: id,
+          },
+        });
+      });
+    } catch (error) {
+      console.log(error);
+      if (error.code === 'P2003') {
+        throw new HttpException('Foreign key constraint failed', HttpStatus.BAD_REQUEST);
+      } else if (error.name === "PrismaClientKnownRequestError") {
+        throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+      } else {
+        throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+
+  async removePlayer(id: number) {
+    try {
+      const teams = await this.prismaService.pokemonTeam.findMany({
+        where: {
+          playerId: id,
+        },
+      });
+      await Promise.all(teams.map(async (team) => {
+        await this.removePokemonTeam(team.id);
+      }));
+
+      await this.prismaService.player.delete({
+        where: {
+          id: id,
+        },
+      });
+    } catch (error) {
+      console.log(error)
+      if (error.code === 'P2003') throw new HttpException('Foreign key constraint failed', HttpStatus.BAD_REQUEST);
+      if (error.name === "PrismaClientKnownRequestError") throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+      return error
+    }
+
+  }
+
+  async updateAllEntities(id: number, playerDto: any) {
+    await this.prismaService.player.update({ where: { id: id }, data: playerDto[0] })
+    await this.prismaService.pokemonTeam.update({ where: { id: playerDto[1].id }, data: playerDto[1] })
+    const pokemon = await this.prismaService.pokemon.update({ where: { id: playerDto[2].id }, data: playerDto[2] })
+    await this.prismaService.stats.update({ where: { id: pokemon.statsId }, data: playerDto[3] })
+  }
+
+  async removePokemon(id: number) {
+    await this.prismaService.$transaction(async (prisma) => {
+      const pokemon = await prisma.pokemon.delete({
+        where: {
+          id: id,
+        },
+      });
+      await prisma.stats.delete({
+        where: {
+          id: pokemon.statsId,
+        },
+      });
+    });
+  }
+
+}
