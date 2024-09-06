@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { PlayerDto } from './dto/player-dto';
-import { PokemonTypeEntity } from './pokemon-api.controller';
+import { PokemonTypeEntity } from './enums/pokemon-entity-enum';
 import { PokemonTeamDto } from './dto/pokemon-team-dto';
 import { PokemonDto } from './dto/pokemon-dto';
 import { StatsDto } from './dto/stats-dto';
@@ -88,34 +88,40 @@ export class PokemonApiService {
     }
   }
 
-
   async updateAll(id: number, playerDto: any, pokemonEntity: PokemonTypeEntity) {
     try {
       switch (pokemonEntity) {
         case 'player': {
-          await this.prismaService.player.update({ where: { id: id }, data: playerDto })
-          break
+          await this.prismaService.player.update({ where: { id: id }, data: playerDto });
+          break;
         }
         case 'team': {
-          await this.prismaService.pokemonTeam.update({ where: { id: id }, data: playerDto })
-          break
+          await this.prismaService.pokemonTeam.update({ where: { id: id }, data: playerDto });
+          break;
         }
         case 'pokemon': {
-          await this.prismaService.pokemon.update({ where: { id: id }, data: playerDto })
-          break
+          await this.prismaService.pokemon.update({ where: { id: id }, data: playerDto });
+          break;
         }
         case 'stats': {
-          console.log(playerDto.id)
-          await this.prismaService.stats.update({ where: { id: id }, data: playerDto })
-          break
+          await this.prismaService.stats.update({ where: { id: id }, data: playerDto });
+          break;
         }
         default:
-          return " Invalid pokemonEntity. Possible values are: 'all', 'player', 'pokemonTeam', 'pokemon', or 'stats'"
+          throw new Error("Invalid pokemonEntity. Possible values are: 'player', 'team', 'pokemon', or 'stats'");
       }
     } catch (error) {
-      console.log(error)
-      if (error.name === "PrismaClientValidationError") throw new HttpException('Invalid data', HttpStatus.UNPROCESSABLE_ENTITY);
-      return error
+      console.log(error);
+      if (error.message.includes("Invalid pokemonEntity")) {
+        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+      }
+      if (error.name === "PrismaClientValidationError") {
+        throw new HttpException('Invalid data', HttpStatus.UNPROCESSABLE_ENTITY);
+      }
+      if (error.name === "PrismaClientKnownRequestError") {
+        throw new HttpException('Record to update not found.', HttpStatus.NOT_FOUND);
+      }
+      return error;
     }
   }
 
@@ -184,13 +190,6 @@ export class PokemonApiService {
       return error
     }
 
-  }
-
-  async updateAllEntities(id: number, playerDto: any) {
-    await this.prismaService.player.update({ where: { id: id }, data: playerDto[0] })
-    await this.prismaService.pokemonTeam.update({ where: { id: playerDto[1].id }, data: playerDto[1] })
-    const pokemon = await this.prismaService.pokemon.update({ where: { id: playerDto[2].id }, data: playerDto[2] })
-    await this.prismaService.stats.update({ where: { id: pokemon.statsId }, data: playerDto[3] })
   }
 
   async removePokemon(id: number) {

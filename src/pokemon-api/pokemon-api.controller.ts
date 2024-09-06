@@ -3,16 +3,9 @@ import { PokemonApiService } from './pokemon-api.service';
 import { UpdatePokemonApiDto } from './dto/update-pokemon-api.dto';
 import { PlayerDto } from './dto/player-dto';
 import { PokemonTeamDto } from './dto/pokemon-team-dto';
+import { PokemonTypeEntity } from './enums/pokemon-entity-enum';
 
 
-enum PokemonEntity {
-  all = 'all',
-  player = 'player',
-  team = 'team',
-  pokemon = 'pokemon',
-  stats = 'stats',
-}
-export type PokemonTypeEntity = PokemonEntity;
 
 @Controller('pokemon-api')
 export class PokemonApiController {
@@ -44,8 +37,9 @@ export class PokemonApiController {
   }
 
   @Patch(':pokemonEntity/:id')
-  update(@Param('id') id: string, @Param('pokemonEntity') pokemonEntity: PokemonEntity, @Body() playerDto: Partial<PlayerDto> | UpdatePokemonApiDto) {
+  update(@Param('id') id: string, @Param('pokemonEntity') pokemonEntity: PokemonTypeEntity, @Body() playerDto: Partial<PlayerDto> | UpdatePokemonApiDto) {
     return this.pokemonApiService.updateAll(+id, playerDto, pokemonEntity);
+    
   }
 
   @Delete('team/:id')
