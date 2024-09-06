@@ -75,7 +75,7 @@ export class PokemonApiService {
       }));
       const player = [];
       player.push({
-        ...player,
+        ...playerData,
         teams: teamsPokemon
       })
       return { player };
@@ -92,15 +92,11 @@ export class PokemonApiService {
   async updateAll(id: number, playerDto: any, pokemonEntity: PokemonTypeEntity) {
     try {
       switch (pokemonEntity) {
-        case 'all': {
-          this.updateAllEntities(id, playerDto)
-          break
-        }
         case 'player': {
           await this.prismaService.player.update({ where: { id: id }, data: playerDto })
           break
         }
-        case 'pokemonTeam': {
+        case 'team': {
           await this.prismaService.pokemonTeam.update({ where: { id: id }, data: playerDto })
           break
         }
@@ -109,6 +105,7 @@ export class PokemonApiService {
           break
         }
         case 'stats': {
+          console.log(playerDto.id)
           await this.prismaService.stats.update({ where: { id: id }, data: playerDto })
           break
         }

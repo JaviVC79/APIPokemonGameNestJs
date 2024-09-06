@@ -8,7 +8,7 @@ import { PokemonTeamDto } from './dto/pokemon-team-dto';
 enum PokemonEntity {
   all = 'all',
   player = 'player',
-  pokemonTeam = 'pokemonTeam',
+  team = 'team',
   pokemon = 'pokemon',
   stats = 'stats',
 }
@@ -43,7 +43,7 @@ export class PokemonApiController {
     return this.pokemonApiService.findOne(+id);
   }
 
-  @Patch(':id/:pokemonEntity')
+  @Patch(':pokemonEntity/:id')
   update(@Param('id') id: string, @Param('pokemonEntity') pokemonEntity: PokemonEntity, @Body() playerDto: Partial<PlayerDto> | UpdatePokemonApiDto) {
     return this.pokemonApiService.updateAll(+id, playerDto, pokemonEntity);
   }
