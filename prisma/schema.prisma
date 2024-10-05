@@ -23,6 +23,7 @@ model Player {
 }
 
 model Pokemon {
+  user_id         String        
   id        Int     @id @default(autoincrement())
   name      String
   stats     Stats   @relation(fields: [statsId], references: [id])
@@ -35,6 +36,7 @@ model Pokemon {
 }
 
 model Stats {
+  user_id         String        
   id        Int      @id @default(autoincrement())
   hp        Int
   attack    Int
@@ -46,6 +48,7 @@ model Stats {
 }
 
 model PokemonTeam {
+  user_id         String       
   id       Int       @id @default(autoincrement())
   name     String    
   player   Player    @relation(fields: [playerId], references: [id])

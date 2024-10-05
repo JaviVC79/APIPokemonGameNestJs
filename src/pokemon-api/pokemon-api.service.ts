@@ -41,7 +41,10 @@ export class PokemonApiService {
   }
   async createTeam(pokemonTeamDto: PokemonTeamDto) {
     try {
-      await this.prismaService.pokemonTeam.create({ data: pokemonTeamDto })
+      const player = await this.prismaService.player.findUnique({ where: { id: pokemonTeamDto.playerId } });
+      if (!player) return
+      const data = { ...pokemonTeamDto, user_id: player.user_id }
+      await this.prismaService.pokemonTeam.create({ data })
     } catch (error) {
       console.log(error)
     }
@@ -50,12 +53,15 @@ export class PokemonApiService {
     const statsDto: StatsDto = pokemonData[1];
     const pokemonDto: PokemonDto = pokemonData[0];
     try {
+      const teams = await this.prismaService.pokemonTeam.findMany({ where: { playerId: pokemonDto.id } });
+      const dataPokemon = { ...pokemonDto, user_id: teams[0].user_id }
+      const dataStats = { ...statsDto, user_id: teams[0].user_id }
       await this.prismaService.$transaction(async (prisma) => {
         const pokemons = await prisma.pokemon.findMany({ where: { teamId: pokemonData[0].teamId } });
         if (pokemons.length >= 5) throw new HttpException('Maximum number of pokemons reached', HttpStatus.BAD_REQUEST)
-        const createdStats = await prisma.stats.create({ data: statsDto });
-        pokemonDto.statsId = createdStats.id;
-        await prisma.pokemon.create({ data: pokemonDto });
+        const createdStats = await prisma.stats.create({ data: dataStats });
+        dataPokemon.statsId = createdStats.id;
+        await prisma.pokemon.create({ data: dataPokemon });
       });
     } catch (error) {
       console.log(error);
