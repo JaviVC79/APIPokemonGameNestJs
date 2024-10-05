@@ -5,12 +5,13 @@ generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "sqlite"
+datasource PokGame {
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Player {
+  user_id         String        @default(uuid())
   id           Int           @id @default(autoincrement())
   email        String        @unique
   nickName     String

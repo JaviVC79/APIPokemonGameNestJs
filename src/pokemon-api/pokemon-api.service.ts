@@ -1,19 +1,39 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { PlayerDto } from './dto/player-dto';
 import { PokemonTypeEntity } from './enums/pokemon-entity-enum';
 import { PokemonTeamDto } from './dto/pokemon-team-dto';
 import { PokemonDto } from './dto/pokemon-dto';
 import { StatsDto } from './dto/stats-dto';
-
+import * as bcrypt from 'bcrypt';
+import { HashService } from './hash/hash.service';
 
 @Injectable()
 export class PokemonApiService {
 
-  constructor(private prismaService: PrismaService) { }
+  constructor(private prismaService: PrismaService,
+    private hashService: HashService
+  ) { }
 
   async createPlayer(playerDto: PlayerDto) {
     try {
+      const hashedPassword = await this.hashService.getPasswordHash(playerDto.password);
+      playerDto.password = hashedPassword
+      if (playerDto.wins === undefined) {
+        playerDto.wins = 0
+      }
+      if (playerDto.losses === undefined) {
+        playerDto.losses = 0
+      }
+      if (playerDto.draws === undefined) {
+        playerDto.draws = 0
+      }
+      const createdPlayers = await this.prismaService.player.findMany();
+      createdPlayers.forEach(player => {
+        if (player.email === playerDto.email) {
+          throw new HttpException('Email already exists', HttpStatus.BAD_REQUEST);
+        }
+      })
       await this.prismaService.player.create({ data: playerDto })
     } catch (error) {
       console.log(error)
@@ -74,8 +94,9 @@ export class PokemonApiService {
         pokemons: pokemon.filter(poke => poke.teamId === team.id)
       }));
       const player = [];
+      const { password, email, ...playerDataWithoutPassword } = playerData;
       player.push({
-        ...playerData,
+        ...playerDataWithoutPassword,
         teams: teamsPokemon
       })
       return { player };
@@ -87,7 +108,17 @@ export class PokemonApiService {
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
-
+  async findOneByEmail(email: string, password: string) {
+    try {
+      const playerData = await this.prismaService.player.findUnique({ where: { email } });
+      const isMatch = await bcrypt.compare(password, playerData.password);
+      if (isMatch) {
+        return playerData;
+      }
+      return
+    }
+    catch (error) { return error }
+  }
   async updateAll(id: number, playerDto: any, pokemonEntity: PokemonTypeEntity) {
     try {
       switch (pokemonEntity) {
