@@ -7,14 +7,19 @@ import { PokemonDto } from './dto/pokemon-dto';
 import { StatsDto } from './dto/stats-dto';
 import * as bcrypt from 'bcrypt';
 import { HashService } from './hash/hash.service';
+import { jwtConstants } from './hash/constants';
+import { JwtService } from '@nestjs/jwt';
+
+
 
 @Injectable()
 export class PokemonApiService {
+  [x: string]: any;
 
   constructor(private prismaService: PrismaService,
-    private hashService: HashService
+    private hashService: HashService,
+    private jwtService: JwtService,
   ) { }
-
   async createPlayer(playerDto: PlayerDto) {
     try {
       const hashedPassword = await this.hashService.getPasswordHash(playerDto.password);
@@ -67,9 +72,10 @@ export class PokemonApiService {
       console.log(error);
     }
   }
-  async findAll() {
+  async findAll(auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
     try {
-      const players = await this.prismaService.player.findMany();
+      const players = await this.prismaService.player.findMany({ where: { user_id: userId } });
       const data = []
       for (let i = 0; i < players.length; i++) {
         data.push(await this.findOne(players[i].id))
@@ -81,6 +87,31 @@ export class PokemonApiService {
     }
 
   }
+
+  async findTeamsByUserId(auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
+    try {
+      const teams = await this.prismaService.pokemonTeam.findMany({ where: { user_id: userId } });
+      return teams
+    } catch (error) {
+      console.log(error)
+    }
+  }
+  async findPokemonsAndHisStatsByUserId(auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
+    try {
+      const pokemons = await this.prismaService.pokemon.findMany({ where: { user_id: userId } });
+      const stats = await Promise.all(pokemons.map(async (pokemon) => await this.prismaService.stats.findUnique({ where: { id: pokemon.statsId } })));
+      const pokemonsAndStats = pokemons.map((pokemon, index) => ({
+        ...pokemon,
+        stats: stats[index]
+      }));
+      return pokemonsAndStats
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
   async findOne(id: number) {
     try {
       const playerData = await this.prismaService.player.findUnique({ where: { id: id } });
@@ -242,6 +273,23 @@ export class PokemonApiService {
         },
       });
     });
+  }
+
+  async extractUserIdFromToken(token: string): Promise<string> {
+    const authToken = token.split(' ')[1]
+    try {
+      const payload = await this.jwtService.verifyAsync(
+        authToken,
+        {
+          secret: jwtConstants.secret
+        }
+      );
+      //console.log(payload)
+      return payload.sub2
+    } catch {
+      throw new UnauthorizedException();
+    }
+
   }
 
 }

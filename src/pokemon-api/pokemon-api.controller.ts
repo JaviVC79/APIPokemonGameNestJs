@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res, HttpCode, HttpStatus, Headers } from '@nestjs/common';
 import { PokemonApiService } from './pokemon-api.service';
 import { UpdatePokemonApiDto } from './dto/update-pokemon-api.dto';
 import { PlayerDto } from './dto/player-dto';
@@ -14,12 +14,12 @@ export class PokemonApiController {
   constructor(
     private readonly pokemonApiService: PokemonApiService,
     private readonly authService: AuthService,
-  ) {}
+  ) { }
 
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  async signIn(@Body() user:any, @Res({ passthrough: true }) response: Response) {
+  async signIn(@Body() user: any, @Res({ passthrough: true }) response: Response) {
     const userJwt = await this.authService.signIn(user);
     //console.log(userJwt)
     response.cookie('jwt', userJwt)
@@ -49,23 +49,48 @@ export class PokemonApiController {
   //Get All 
   @UseGuards(AuthGuard)
   @Get()
-  findAll() {
-    return this.pokemonApiService.findAll();
+  findAll(@Headers('authorization') auth: string) {
+    return this.pokemonApiService.findAll(auth);
   }
-  
+  //Get teams by user_id
+  @UseGuards(AuthGuard)
+  @Get('teams')
+  async findTeamsByUserId(@Headers('authorization') auth: string) {
+    return await this.pokemonApiService.findTeamsByUserId(auth);
+
+  }
+  //Get pokemons by user_id
+  @UseGuards(AuthGuard)
+  @Get('pokemons')
+  async findPokemonsAndHisStatsByUserId(@Headers('authorization') auth: string) {
+    return await this.pokemonApiService.findPokemonsAndHisStatsByUserId(auth);
+
+  }
+
   //Get by Player id
   @UseGuards(AuthGuard)
-  @Get(':id')
+  @Get('player/:id')
   async findOne(@Param('id') id: string, @Res() res: Response) {
     const pokemon = await this.pokemonApiService.findOne(+id);
     return res.json(pokemon);
   }
 
+
+
+
+  //Patch Methods----------------------------------------------------------------------------------------------------------------------------------------------
+  /*Patch by 
+  pokemonEntity(
+    player = 'player',
+    team = 'team',
+    pokemon = 'pokemon',
+    stats = 'stats',) 
+  and pokemonEntity id*/
   @UseGuards(AuthGuard)
   @Patch(':pokemonEntity/:id')
   update(@Param('id') id: string, @Param('pokemonEntity') pokemonEntity: PokemonTypeEntity, @Body() playerDto: Partial<PlayerDto> | UpdatePokemonApiDto) {
     return this.pokemonApiService.updateAll(+id, playerDto, pokemonEntity);
-    
+
   }
 
   //Delete Methods----------------------------------------------------------------------------------------------------------------------------------------------
