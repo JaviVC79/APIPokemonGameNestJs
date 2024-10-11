@@ -21,7 +21,6 @@ export class PokemonApiController {
   @Post('login')
   async signIn(@Body() user: any, @Res({ passthrough: true }) response: Response) {
     const userJwt = await this.authService.signIn(user);
-    //console.log(userJwt)
     response.cookie('jwt', userJwt)
     response.cookie('userEmail', user.email)
     return userJwt
@@ -33,17 +32,16 @@ export class PokemonApiController {
   }
 
   @UseGuards(AuthGuard)
-  @Post('team/:playerId')
-  createTeam(@Body() pokemonTeamDto: PokemonTeamDto, @Param('playerId') playerId: string) {
-    pokemonTeamDto.playerId = +playerId;
-    return this.pokemonApiService.createTeam(pokemonTeamDto);
+  @Post('team')
+  createTeam(@Body() pokemonTeamDto: PokemonTeamDto, @Headers('authorization') auth: string) {
+    return this.pokemonApiService.createTeam(pokemonTeamDto, auth);
   }
 
   @UseGuards(AuthGuard)
   @Post('pokemon/:teamId')
-  createPokemon(@Body() pokemonData: any, @Param('teamId') teamId: string) {
+  createPokemon(@Body() pokemonData: any, @Param('teamId') teamId: string, @Headers('authorization') auth: string) {
     pokemonData[0].teamId = +teamId;
-    return this.pokemonApiService.createPokemonAndStats(pokemonData);
+    return this.pokemonApiService.createPokemonAndStats(pokemonData, auth);
   }
   //Get Methods----------------------------------------------------------------------------------------------------------------------------------------------
   //Get All 
@@ -57,16 +55,13 @@ export class PokemonApiController {
   @Get('teams')
   async findTeamsByUserId(@Headers('authorization') auth: string) {
     return await this.pokemonApiService.findTeamsByUserId(auth);
-
   }
   //Get pokemons by user_id
   @UseGuards(AuthGuard)
   @Get('pokemons')
   async findPokemonsAndHisStatsByUserId(@Headers('authorization') auth: string) {
     return await this.pokemonApiService.findPokemonsAndHisStatsByUserId(auth);
-
   }
-
   //Get by Player id
   @UseGuards(AuthGuard)
   @Get('player/:id')
@@ -97,20 +92,20 @@ export class PokemonApiController {
   //Delete Team  
   @UseGuards(AuthGuard)
   @Delete('team/:id')
-  removePokemonTeam(@Param('id') id: string) {
-    return this.pokemonApiService.removePokemonTeam(+id);
+  removePokemonTeam(@Param('id') id: string, @Headers('authorization') auth: string) {
+    return this.pokemonApiService.removePokemonTeam(+id, auth);
   }
   //Delete Player 
   @UseGuards(AuthGuard)
-  @Delete('player/:id')
-  removePlayer(@Param('id') id: string) {
-    return this.pokemonApiService.removePlayer(+id);
+  @Delete('player')
+  removePlayer(@Headers('authorization') auth: string) {
+    return this.pokemonApiService.removePlayer(auth);
   }
   //Delete Pokemon & his Stats
   @UseGuards(AuthGuard)
   @Delete('pokemon/:pokemonId')
-  removePokemon(@Param('pokemonId') pokemonId: string) {
-    return this.pokemonApiService.removePokemon(+pokemonId);
+  removePokemon(@Param('pokemonId') pokemonId: string, @Headers('authorization') auth: string) {
+    return this.pokemonApiService.removePokemon(+pokemonId, auth);
   }
 
 

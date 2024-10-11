@@ -21,6 +21,12 @@ export class PokemonApiService {
     private jwtService: JwtService,
   ) { }
   async createPlayer(playerDto: PlayerDto) {
+    if (playerDto.password.length < 8 || playerDto.password === undefined || playerDto.password === null || playerDto.password === ''
+      || playerDto.email === undefined || playerDto.email === null || playerDto.email === ''
+      || playerDto.nickName === undefined || playerDto.nickName === null || playerDto.nickName === '' || playerDto.nickName.length < 4) {
+      throw new HttpException('Password must be at least 8 characters long, email should be a valid email and nickName must be at least 4 characters long', 
+      HttpStatus.BAD_REQUEST);
+    }
     try {
       const hashedPassword = await this.hashService.getPasswordHash(playerDto.password);
       playerDto.password = hashedPassword
@@ -40,27 +46,33 @@ export class PokemonApiService {
         }
       })
       await this.prismaService.player.create({ data: playerDto })
+      return HttpStatus.CREATED
     } catch (error) {
       console.log(error)
     }
   }
-  async createTeam(pokemonTeamDto: PokemonTeamDto) {
+  async createTeam(pokemonTeamDto: PokemonTeamDto, auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
     try {
-      const player = await this.prismaService.player.findUnique({ where: { id: pokemonTeamDto.playerId } });
+      const player = await this.prismaService.player.findMany({ where: { user_id: userId } });
       if (!player) return
-      const data = { ...pokemonTeamDto, user_id: player.user_id }
+      const data = { ...pokemonTeamDto, user_id: player[0].user_id, playerId: player[0].id }
       await this.prismaService.pokemonTeam.create({ data })
     } catch (error) {
       console.log(error)
     }
   }
-  async createPokemonAndStats(pokemonData: any) {
+  async createPokemonAndStats(pokemonData: any, auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
     const statsDto: StatsDto = pokemonData[1];
     const pokemonDto: PokemonDto = pokemonData[0];
     try {
-      const teams = await this.prismaService.pokemonTeam.findMany({ where: { playerId: pokemonDto.id } });
+      const teams = await this.prismaService.pokemonTeam.findMany({ where: { id: pokemonDto.teamId } });
       const dataPokemon = { ...pokemonDto, user_id: teams[0].user_id }
       const dataStats = { ...statsDto, user_id: teams[0].user_id }
+      teams.map(team => {
+        if (team.user_id !== userId) throw new HttpException('Invalid teamId', HttpStatus.BAD_REQUEST)
+      })
       await this.prismaService.$transaction(async (prisma) => {
         const pokemons = await prisma.pokemon.findMany({ where: { teamId: pokemonData[0].teamId } });
         if (pokemons.length >= 5) throw new HttpException('Maximum number of pokemons reached', HttpStatus.BAD_REQUEST)
@@ -70,6 +82,7 @@ export class PokemonApiService {
       });
     } catch (error) {
       console.log(error);
+      return error
     }
   }
   async findAll(auth: string) {
@@ -193,19 +206,22 @@ export class PokemonApiService {
     }
   }
 
-  async removePokemonTeam(id: number) {
+  async removePokemonTeam(id: number, auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
     try {
       await this.prismaService.$transaction(async (prisma) => {
         // Eliminar todos los Pokémon del equipo
         const pokemons = await prisma.pokemon.findMany({
           where: {
             teamId: id,
+            user_id: userId
           },
         });
         // Eliminar los Pokémon primero
         await prisma.pokemon.deleteMany({
           where: {
             teamId: id,
+            user_id: userId
           },
         });
         // Luego eliminar las estadísticas asociadas
@@ -213,6 +229,7 @@ export class PokemonApiService {
           await prisma.stats.delete({
             where: {
               id: pokemon.statsId,
+              user_id: userId
             },
           });
         }));
@@ -235,22 +252,23 @@ export class PokemonApiService {
     }
   }
 
-  async removePlayer(id: number) {
+  async removePlayer(auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
     try {
       const teams = await this.prismaService.pokemonTeam.findMany({
         where: {
-          playerId: id,
+          user_id: userId,
         },
       });
       await Promise.all(teams.map(async (team) => {
-        await this.removePokemonTeam(team.id);
+        await this.removePokemonTeam(team.id, auth);
       }));
-
-      await this.prismaService.player.delete({
+      await this.prismaService.player.deleteMany({
         where: {
-          id: id,
+          user_id: userId
         },
       });
+      return HttpStatus.OK
     } catch (error) {
       console.log(error)
       if (error.code === 'P2003') throw new HttpException('Foreign key constraint failed', HttpStatus.BAD_REQUEST);
@@ -260,16 +278,19 @@ export class PokemonApiService {
 
   }
 
-  async removePokemon(id: number) {
+  async removePokemon(id: number, auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
     await this.prismaService.$transaction(async (prisma) => {
       const pokemon = await prisma.pokemon.delete({
         where: {
           id: id,
+          user_id: userId
         },
       });
       await prisma.stats.delete({
         where: {
           id: pokemon.statsId,
+          user_id: userId
         },
       });
     });
@@ -284,7 +305,6 @@ export class PokemonApiService {
           secret: jwtConstants.secret
         }
       );
-      //console.log(payload)
       return payload.sub2
     } catch {
       throw new UnauthorizedException();

@@ -57,5 +57,72 @@ model PokemonTeam {
 }
 
 
+/*model Player {
+  user_id         String        @default(uuid())
+  id              Int           @id @default(autoincrement())
+  email           String        @unique
+  nickName        String
+  password        String
+  wins            Int
+  losses          Int
+  draws           Int
+  pokemonTeams    PokemonTeam[]
+  games           Game[]        @relation("PlayerGames")
+}
+
+model Pokemon {
+  user_id         String        
+  id              Int           @id @default(autoincrement())
+  name            String
+  stats           Stats         @relation(fields: [statsId], references: [id])
+  statsId         Int           @unique
+  types           String
+  abilities       String
+  moves           String
+  team            PokemonTeam?  @relation(fields: [teamId], references: [id])
+  teamId          Int?
+}
+
+model Stats {
+  user_id         String        
+  id              Int           @id @default(autoincrement())
+  hp              Int
+  attack          Int
+  specialAttack   Int
+  defense         Int
+  specialDefense  Int
+  speed           Int
+  pokemon         Pokemon?
+}
+
+model PokemonTeam {
+  user_id         String       
+  id              Int           @id @default(autoincrement())
+  name            String    
+  player          Player        @relation(fields: [playerId], references: [id])
+  playerId        Int
+  pokemons        Pokemon[]
+}
+
+model Game {
+  id              Int           @id @default(autoincrement())
+  player1         Player        @relation("PlayerGames", fields: [player1Id], references: [id])
+  player1Id       Int
+  player2         Player        @relation("PlayerGames", fields: [player2Id], references: [id])
+  player2Id       Int
+  turns           Turn[]
+  winner          Player?       @relation(fields: [winnerId], references: [id])
+  winnerId        Int?
+}
+
+model Turn {
+  id              Int           @id @default(autoincrement())
+  game            Game          @relation(fields: [gameId], references: [id])
+  gameId          Int
+  player          Player        @relation(fields: [playerId], references: [id])
+  playerId        Int
+  action          String
+  turnNumber      Int
+}*/
 
 
