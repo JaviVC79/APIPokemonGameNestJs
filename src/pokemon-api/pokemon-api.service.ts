@@ -21,11 +21,11 @@ export class PokemonApiService {
     private jwtService: JwtService,
   ) { }
   async createPlayer(playerDto: PlayerDto) {
-    if (playerDto.password.length < 8 || playerDto.password === undefined || playerDto.password === null || playerDto.password === ''
-      || playerDto.email === undefined || playerDto.email === null || playerDto.email === ''
-      || playerDto.nickName === undefined || playerDto.nickName === null || playerDto.nickName === '' || playerDto.nickName.length < 4) {
-      throw new HttpException('Password must be at least 8 characters long, email should be a valid email and nickName must be at least 4 characters long', 
-      HttpStatus.BAD_REQUEST);
+    if (!playerDto.password || playerDto.password === null || playerDto.password === '' || playerDto.password.length < 8
+      || !playerDto.email || playerDto.email === null || playerDto.email === ''
+      || !playerDto.nickName || playerDto.nickName === null || playerDto.nickName === '' || playerDto.nickName.length < 4) {
+      throw new HttpException('Password must be at least 8 characters long, email should be a valid email and nickName must be at least 4 characters long',
+        HttpStatus.BAD_REQUEST);
     }
     try {
       const hashedPassword = await this.hashService.getPasswordHash(playerDto.password);
@@ -58,6 +58,7 @@ export class PokemonApiService {
       if (!player) return
       const data = { ...pokemonTeamDto, user_id: player[0].user_id, playerId: player[0].id }
       await this.prismaService.pokemonTeam.create({ data })
+      return { status: HttpStatus.CREATED, message: "New team has been created successfully" }
     } catch (error) {
       console.log(error)
     }
@@ -84,6 +85,7 @@ export class PokemonApiService {
       console.log(error);
       return error
     }
+    return { status: HttpStatus.CREATED, message: "New pokemon has been created successfully" }
   }
   async findAll(auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
@@ -105,7 +107,7 @@ export class PokemonApiService {
     const userId = await this.extractUserIdFromToken(auth)
     try {
       const teams = await this.prismaService.pokemonTeam.findMany({ where: { user_id: userId } });
-      return teams
+      return {teams, status: HttpStatus.OK, message: "Teams has been found successfully" }
     } catch (error) {
       console.log(error)
     }
@@ -268,7 +270,7 @@ export class PokemonApiService {
           user_id: userId
         },
       });
-      return HttpStatus.OK
+      return { status: HttpStatus.OK, message: "Player has been deleted successfully" }
     } catch (error) {
       console.log(error)
       if (error.code === 'P2003') throw new HttpException('Foreign key constraint failed', HttpStatus.BAD_REQUEST);

@@ -6,3 +6,5 @@ export const jwtConstants = {
     secret:  configService.get<string>('JWT_SECRET'),
   };
 export const saltOrRounds = configService.get('SALTORROUNDS');
+export const baseUrl = configService.get('BASE_URL');
+
