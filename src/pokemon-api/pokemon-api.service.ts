@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Body, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { PlayerDto } from './dto/player-dto';
 import { PokemonTypeEntity } from './enums/pokemon-entity-enum';
@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { HashService } from './hash/hash.service';
 import { jwtConstants } from './hash/constants';
 import { JwtService } from '@nestjs/jwt';
+import { Response } from 'express';
 
 
 
@@ -57,8 +58,8 @@ export class PokemonApiService {
       const player = await this.prismaService.player.findMany({ where: { user_id: userId } });
       if (!player) return
       const data = { ...pokemonTeamDto, user_id: player[0].user_id, playerId: player[0].id }
-      await this.prismaService.pokemonTeam.create({ data })
-      return { status: HttpStatus.CREATED, message: "New team has been created successfully" }
+      const response = await this.prismaService.pokemonTeam.create({ data })
+      return { id: response.id, status: HttpStatus.CREATED, message: "New team has been created successfully" }
     } catch (error) {
       console.log(error)
     }
@@ -67,6 +68,8 @@ export class PokemonApiService {
     const userId = await this.extractUserIdFromToken(auth)
     const statsDto: StatsDto = pokemonData[1];
     const pokemonDto: PokemonDto = pokemonData[0];
+    let createdPokemon: PokemonDto;
+    let createdStats: StatsDto;
     try {
       const teams = await this.prismaService.pokemonTeam.findMany({ where: { id: pokemonDto.teamId } });
       const dataPokemon = { ...pokemonDto, user_id: teams[0].user_id }
@@ -77,15 +80,15 @@ export class PokemonApiService {
       await this.prismaService.$transaction(async (prisma) => {
         const pokemons = await prisma.pokemon.findMany({ where: { teamId: pokemonData[0].teamId } });
         if (pokemons.length >= 5) throw new HttpException('Maximum number of pokemons reached', HttpStatus.BAD_REQUEST)
-        const createdStats = await prisma.stats.create({ data: dataStats });
+        createdStats = await prisma.stats.create({ data: dataStats });
         dataPokemon.statsId = createdStats.id;
-        await prisma.pokemon.create({ data: dataPokemon });
+        createdPokemon = await prisma.pokemon.create({ data: dataPokemon });
       });
     } catch (error) {
       console.log(error);
       return error
     }
-    return { status: HttpStatus.CREATED, message: "New pokemon has been created successfully" }
+    return { pokemonId: createdPokemon.id, statsId: createdStats.id, status: HttpStatus.CREATED, message: "New pokemon has been created successfully" }
   }
   async findAll(auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
@@ -95,7 +98,7 @@ export class PokemonApiService {
       for (let i = 0; i < players.length; i++) {
         data.push(await this.findOne(players[i].id))
       }
-      return data
+      return { data, status: HttpStatus.OK, message: "Player has been found successfully" }
     } catch (error) {
       console.log(error)
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -107,7 +110,7 @@ export class PokemonApiService {
     const userId = await this.extractUserIdFromToken(auth)
     try {
       const teams = await this.prismaService.pokemonTeam.findMany({ where: { user_id: userId } });
-      return {teams, status: HttpStatus.OK, message: "Teams has been found successfully" }
+      return { teams, status: HttpStatus.OK, message: "Teams has been found successfully" }
     } catch (error) {
       console.log(error)
     }
@@ -121,7 +124,7 @@ export class PokemonApiService {
         ...pokemon,
         stats: stats[index]
       }));
-      return pokemonsAndStats
+      return { pokemonsAndStats, status: HttpStatus.OK, message: "Pokemons has been found successfully" }
     } catch (error) {
       console.log(error)
     }
@@ -171,40 +174,66 @@ export class PokemonApiService {
     }
     catch (error) { return error }
   }
-  async updateAll(id: number, playerDto: any, pokemonEntity: PokemonTypeEntity) {
+
+  async updateAll(id: number, playerDto: any, pokemonEntity: PokemonTypeEntity, auth: string, res: Response) {
+    const userId = await this.extractUserIdFromToken(auth);
     try {
       switch (pokemonEntity) {
         case 'player': {
+          const player = await this.prismaService.player.findMany({ where: { user_id: userId } });
+          if (!player) return res.status(HttpStatus.NOT_FOUND).json({ message: 'Not Found' });
+          if (player[0].id !== id) return res.status(HttpStatus.BAD_REQUEST).json({ message: 'Invalid id' });
           await this.prismaService.player.update({ where: { id: id }, data: playerDto });
-          break;
+          return res.status(HttpStatus.OK).json({ message: "Updated successfully" });
         }
         case 'team': {
-          await this.prismaService.pokemonTeam.update({ where: { id: id }, data: playerDto });
-          break;
+          const teams = await this.prismaService.pokemonTeam.findMany({ where: { user_id: userId } });
+          if (!teams) return res.status(HttpStatus.NOT_FOUND).json({ message: 'Not Found' });
+          for (const team of teams) {
+            if (team.id === id) {
+              await this.prismaService.pokemonTeam.update({ where: { id: id }, data: playerDto });
+              return res.status(HttpStatus.OK).json({ message: "Updated successfully" });
+            }
+          }
+          return res.status(HttpStatus.NOT_FOUND).json({ message: 'Team not found' });
         }
         case 'pokemon': {
-          await this.prismaService.pokemon.update({ where: { id: id }, data: playerDto });
-          break;
+          const pokemons = await this.prismaService.pokemon.findMany({ where: { user_id: userId } });
+          if (!pokemons) return res.status(HttpStatus.NOT_FOUND).json({ message: 'Not Found' });
+          for (const pokemon of pokemons) {
+            if (pokemon.id === id) {
+              await this.prismaService.pokemon.update({ where: { id: id }, data: playerDto });
+              return res.status(HttpStatus.OK).json({ message: "Updated successfully" });
+            }
+          }
+          return res.status(HttpStatus.NOT_FOUND).json({ message: 'Pokemon not found' });
         }
         case 'stats': {
-          await this.prismaService.stats.update({ where: { id: id }, data: playerDto });
-          break;
+          const stats = await this.prismaService.stats.findMany({ where: { user_id: userId } });
+          if (!stats) return res.status(HttpStatus.NOT_FOUND).json({ message: 'Not Found' });
+          for (const stat of stats) {
+            if (stat.id === id) {
+              await this.prismaService.stats.update({ where: { id: id }, data: playerDto });
+              return res.status(HttpStatus.OK).json({ message: "Updated successfully" });
+            }
+          }
+          return res.status(HttpStatus.NOT_FOUND).json({ message: 'Stats not found' });
         }
         default:
-          throw new Error("Invalid pokemonEntity. Possible values are: 'player', 'team', 'pokemon', or 'stats'");
+          return res.status(HttpStatus.BAD_REQUEST).json({ message: "Invalid pokemonEntity. Possible values are: 'player', 'team', 'pokemon', or 'stats'" });
       }
     } catch (error) {
       console.log(error);
       if (error.message.includes("Invalid pokemonEntity")) {
-        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+        return res.status(HttpStatus.NOT_FOUND).json({ message: error.message });
       }
       if (error.name === "PrismaClientValidationError") {
-        throw new HttpException('Invalid data', HttpStatus.UNPROCESSABLE_ENTITY);
+        return res.status(HttpStatus.UNPROCESSABLE_ENTITY).json({ message: 'Invalid data' });
       }
       if (error.name === "PrismaClientKnownRequestError") {
-        throw new HttpException('Record to update not found.', HttpStatus.NOT_FOUND);
+        return res.status(HttpStatus.NOT_FOUND).json({ message: 'Record to update not found.' });
       }
-      return error;
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal server error' });
     }
   }
 

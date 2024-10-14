@@ -1,3 +1,10 @@
+export enum PokemonEntity {
+  player = 'player',
+  team = 'team',
+  pokemon = 'pokemon',
+  stats = 'stats',
+}
+
 export const testArrayCreatePlayer: any[] = [
     { email: "test@gmail.com", password: "123456789", nickName: "test" },
     { email: "test@gmail.com", password: "123456789", nickName: null },

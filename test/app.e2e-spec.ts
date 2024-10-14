@@ -2,12 +2,17 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HttpException, INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from './../src/app.module';
-import { pokemons, teams, testArrayCreatePlayer } from './array-data-test/pokemon-api-data-tests';
+import { PokemonEntity, pokemons, teams, testArrayCreatePlayer } from './array-data-test/pokemon-api-data-tests';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
   let token: string;
   let teamIdArray: string[];
+  let createdPlayerId: number;
+  let createdTeamId: number;
+  let createdPokemonId: number;
+  let createdStatsId: number;
+
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -67,24 +72,39 @@ describe('AppController (e2e)', () => {
     token = response.body.access_token
   });
 
-  it('DELETE (/pokemon-api/player) should fail to try delete a Player and retorn a 401 Unauthorized status', async () => {
+  it('DELETE (/pokemon-api/player) should fail to try delete a Player and return a 401 Unauthorized status', async () => {
     const response: any = await request(app.getHttpServer()).delete('/pokemon-api/player').set('Authorization', `Bearer ${'invalid-token'}`);
     expect(response.status).toBe(401)
     const response2: any = await request(app.getHttpServer()).delete('/pokemon-api/player');
     expect(response2.status).toBe(401)
   });
 
-  it('POST (/pokemon-api/team) should create a Player team and retorn a 201 status', async () => {
+  it('GET (/pokemon-api) should get a Player and all his data and return a 200 status', async () => {
+    const response = await request(app.getHttpServer()).get(`/pokemon-api`).set('Authorization', `Bearer ${token}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toBeInstanceOf(Object);
+    expect(Object.keys(response.body).length).toBe(3);
+    expect(response.body).toHaveProperty('data');
+    expect(response.body).toHaveProperty('status');
+    expect(response.body).toHaveProperty('message');
+    expect(response.body.status).toBe(200)
+    expect(response.body.message).toBe('Player has been found successfully')
+    expect(response.body.data).toBeInstanceOf(Array)
+    createdPlayerId = response.body.data[0].player[0].id
+  });
+
+  it('POST (/pokemon-api/team) should create a Player team and return a 201 status', async () => {
     const response: any = await request(app.getHttpServer()).post('/pokemon-api/team').set('Authorization', `Bearer ${token}`).send(teams[0]);
     const response2: any = await request(app.getHttpServer()).post('/pokemon-api/team').set('Authorization', `Bearer ${token}`).send(teams[1]);
     expect(response.status).toBe(201);
     expect(response.body).toBeInstanceOf(Object);
-    expect(Object.keys(response.body).length).toBe(2);
+    expect(Object.keys(response.body).length).toBe(3);
     expect(response.body).toHaveProperty('status');
     expect(response.body).toHaveProperty('message');
     expect(response.body.status).toBe(201)
     expect(response.body.message).toBe('New team has been created successfully')
     expect(response2.body.message).toBe('New team has been created successfully')
+    createdTeamId = response.body.id
   });
 
   it('GET (/pokemon-api/teams) should get a Pokemon team array and return a 200 status', async () => {
@@ -107,11 +127,57 @@ describe('AppController (e2e)', () => {
       .post(`/pokemon-api/pokemon/${teamId}`)
       .set('Authorization', `Bearer ${token}`)
       .send(pokemons[Math.floor(Math.random() * pokemons.length)]);
+    expect(response.body).toHaveProperty('pokemonId');
+    expect(response.body).toHaveProperty('statsId');
     expect(response.body).toHaveProperty('status');
     expect(response.body).toHaveProperty('message');
-    expect(response.body.status).toBe(201)
-    expect(response.body.message).toBe('New pokemon has been created successfully')
+    expect(response.body.status).toBe(201);
+    expect(response.body.message).toBe('New pokemon has been created successfully');
+    createdPokemonId = response.body.pokemonId;
+    createdStatsId = response.body.statsId;
   });
+
+  it('GET (/pokemon-api/pokemons) should get a Pokemon and his stats array and return a 200 status', async () => {
+    const response: any = await request(app.getHttpServer()).get('/pokemon-api/pokemons').set('Authorization', `Bearer ${token}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toBeInstanceOf(Object);
+    expect(Object.keys(response.body).length).toBe(3);
+    expect(response.body).toHaveProperty('pokemonsAndStats');
+    expect(response.body).toHaveProperty('status');
+    expect(response.body).toHaveProperty('message');
+    expect(response.body.status).toBe(200)
+    expect(response.body.message).toBe('Pokemons has been found successfully')
+    expect(response.body.pokemonsAndStats).toBeInstanceOf(Array)
+  });
+
+  it('PATCH (/pokemon-api/:pokemonEntity/:id) should update a Player, or his teams, or his pokemons, or his stats and retorn a 200 status', async () => {
+    const response: any = await request(app.getHttpServer())
+      .patch(`/pokemon-api/${PokemonEntity.player}/${createdPlayerId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ nickName: "changedNickName" });
+    console.log("teamId", createdTeamId)
+    expect(response.status).toBe(200)
+    expect(response.body.message).toBe('Updated successfully')
+    const response2: any = await request(app.getHttpServer())
+      .patch(`/pokemon-api/${PokemonEntity.team}/${createdTeamId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: "changedName" });
+    expect(response2.status).toBe(200)
+    expect(response2.body.message).toBe('Updated successfully')
+    const response3: any = await request(app.getHttpServer())
+      .patch(`/pokemon-api/${PokemonEntity.pokemon}/${createdPokemonId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: "changedName" });
+    expect(response3.status).toBe(200)
+    expect(response3.body.message).toBe('Updated successfully')
+    const response4: any = await request(app.getHttpServer())
+      .patch(`/pokemon-api/${PokemonEntity.stats}/${createdStatsId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hp: 1345 });
+    expect(response4.status).toBe(200)
+    expect(response4.body.message).toBe('Updated successfully')
+  });
+
 
   it('DELETE (/pokemon-api/player) should delete a Player, his teams, his pokemons and his stats, and retorn a 200 status', async () => {
     const response: any = await request(app.getHttpServer()).delete('/pokemon-api/player').set('Authorization', `Bearer ${token}`);

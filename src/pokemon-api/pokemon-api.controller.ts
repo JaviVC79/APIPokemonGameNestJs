@@ -83,9 +83,9 @@ export class PokemonApiController {
   and pokemonEntity id*/
   @UseGuards(AuthGuard)
   @Patch(':pokemonEntity/:id')
-  update(@Param('id') id: string, @Param('pokemonEntity') pokemonEntity: PokemonTypeEntity, @Body() playerDto: Partial<PlayerDto> | UpdatePokemonApiDto) {
-    return this.pokemonApiService.updateAll(+id, playerDto, pokemonEntity);
-
+  update(@Param('id') id: string, @Param('pokemonEntity') pokemonEntity: PokemonTypeEntity, @Body() playerDto: Partial<PlayerDto> | UpdatePokemonApiDto, @Headers('authorization') auth: string,
+    @Res() res: Response) {
+    return this.pokemonApiService.updateAll(+id, playerDto, pokemonEntity, auth, res);
   }
 
   //Delete Methods----------------------------------------------------------------------------------------------------------------------------------------------

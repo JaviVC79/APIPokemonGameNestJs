@@ -27,7 +27,7 @@ describe('PokemonApiController', () => {
   });
 
   it('should return an array of data', async () => {
-    const result = ['test'];
+    const result = { data: ['test'], status: 200, message: 'testOK' };
     jest.spyOn(controller, 'findAll').mockImplementation(async () => result);
 
     expect(await controller.findAll('valid-token')).toEqual(result
