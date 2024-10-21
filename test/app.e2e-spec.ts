@@ -3,6 +3,7 @@ import { HttpException, INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { PokemonEntity, pokemons, teams, testArrayCreatePlayer } from './array-data-test/pokemon-api-data-tests';
+import { baseUrl } from '../src/pokemon-api/hash/constants';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
@@ -31,6 +32,8 @@ describe('AppController (e2e)', () => {
   it('POST (/pokemon-api) should create a new Player and return a 201 status', async () => {
     const res: any = await request(app.getHttpServer()).post('/pokemon-api').send(testArrayCreatePlayer[0]);
     expect(res.status).toBe(201)
+    expect(res.headers.location).toBe(`${baseUrl}`)
+    
   });
 
   it('POST (/pokemon-api) should fail to create a new Player that is already created or create data is not correct in any way', async () => {
@@ -98,13 +101,22 @@ describe('AppController (e2e)', () => {
     const response2: any = await request(app.getHttpServer()).post('/pokemon-api/team').set('Authorization', `Bearer ${token}`).send(teams[1]);
     expect(response.status).toBe(201);
     expect(response.body).toBeInstanceOf(Object);
-    expect(Object.keys(response.body).length).toBe(3);
-    expect(response.body).toHaveProperty('status');
-    expect(response.body).toHaveProperty('message');
-    expect(response.body.status).toBe(201)
-    expect(response.body.message).toBe('New team has been created successfully')
-    expect(response2.body.message).toBe('New team has been created successfully')
+    expect(Object.keys(response.body).length).toBe(4);
+    expect(response.headers.location).toBe(`${baseUrl}/teams`)
+    expect(response.body).toHaveProperty('user_id');
+    expect(response.body).toHaveProperty('name');
+    expect(response.body).toHaveProperty('id');
+    expect(response.body).toHaveProperty('playerId');
+    expect(response2.status).toBe(201);
+    expect(response2.body).toBeInstanceOf(Object);
+    expect(Object.keys(response2.body).length).toBe(4);
+    expect(response2.headers.location).toBe(`${baseUrl}/teams`)
+    expect(response2.body).toHaveProperty('user_id');
+    expect(response2.body).toHaveProperty('name');
+    expect(response2.body).toHaveProperty('id');
+    expect(response2.body).toHaveProperty('playerId');
     createdTeamId = response.body.id
+    
   });
 
   it('GET (/pokemon-api/teams) should get a Pokemon team array and return a 200 status', async () => {
@@ -155,7 +167,7 @@ describe('AppController (e2e)', () => {
       .patch(`/pokemon-api/${PokemonEntity.player}/${createdPlayerId}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ nickName: "changedNickName" });
-    console.log("teamId", createdTeamId)
+    //console.log("teamId", createdTeamId)
     expect(response.status).toBe(200)
     expect(response.body.message).toBe('Updated successfully')
     const response2: any = await request(app.getHttpServer())

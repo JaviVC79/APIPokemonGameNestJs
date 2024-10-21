@@ -46,8 +46,8 @@ export class PokemonApiService {
           throw new HttpException('Email already exists', HttpStatus.BAD_REQUEST);
         }
       })
-      await this.prismaService.player.create({ data: playerDto })
-      return HttpStatus.CREATED
+      const newPlayer = await this.prismaService.player.create({ data: playerDto });
+      return newPlayer;
     } catch (error) {
       console.log(error)
     }
@@ -57,9 +57,9 @@ export class PokemonApiService {
     try {
       const player = await this.prismaService.player.findMany({ where: { user_id: userId } });
       if (!player) return
-      const data = { ...pokemonTeamDto, user_id: player[0].user_id, playerId: player[0].id }
-      const response = await this.prismaService.pokemonTeam.create({ data })
-      return { id: response.id, status: HttpStatus.CREATED, message: "New team has been created successfully" }
+      const data = { ...pokemonTeamDto, user_id: player[0].user_id, playerId: player[0].id };
+      const newTeam = await this.prismaService.pokemonTeam.create({ data });
+      return newTeam;
     } catch (error) {
       console.log(error)
     }

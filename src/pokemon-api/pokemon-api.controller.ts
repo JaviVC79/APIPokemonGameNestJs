@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res, HttpCode, HttpStatus, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res, HttpCode, HttpStatus, Headers, HttpException } from '@nestjs/common';
 import { PokemonApiService } from './pokemon-api.service';
 import { UpdatePokemonApiDto } from './dto/update-pokemon-api.dto';
 import { PlayerDto } from './dto/player-dto';
@@ -7,6 +7,7 @@ import { PokemonTypeEntity } from './enums/pokemon-entity-enum';
 import { Response } from 'express';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './authUser.service';
+import { baseUrl } from './hash/constants';
 
 
 @Controller('pokemon-api')
@@ -27,14 +28,31 @@ export class PokemonApiController {
   }
 
   @Post()
-  createPlayer(@Body() playerDto: PlayerDto) {
-    return this.pokemonApiService.createPlayer(playerDto);
+  async createPlayer(@Body() playerDto: PlayerDto, @Res() res: Response) {
+    try {
+      const newPlayer: any = await this.pokemonApiService.createPlayer(playerDto);
+      res.status(HttpStatus.CREATED)
+        .location(`${baseUrl}`)
+        .json(newPlayer);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.log(error);
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @UseGuards(AuthGuard)
   @Post('team')
-  createTeam(@Body() pokemonTeamDto: PokemonTeamDto, @Headers('authorization') auth: string) {
-    return this.pokemonApiService.createTeam(pokemonTeamDto, auth);
+  async createTeam(@Body() pokemonTeamDto: PokemonTeamDto, @Headers('authorization') auth: string, @Res() res: Response) {
+    try {
+      const newTeam = await this.pokemonApiService.createTeam(pokemonTeamDto, auth);
+      res.status(HttpStatus.CREATED)
+      .location(`${baseUrl}/teams`)
+      .json(newTeam);
+    } catch (error) { console.log(error) }
+
   }
 
   @UseGuards(AuthGuard)
