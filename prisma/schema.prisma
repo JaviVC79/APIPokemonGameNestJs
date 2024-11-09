@@ -9,8 +9,7 @@ datasource PokGame {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-model Player {
+/*model Player {
   user_id         String        @default(uuid())
   id           Int           @id @default(autoincrement())
   email        String        @unique
@@ -54,10 +53,9 @@ model PokemonTeam {
   player   Player    @relation(fields: [playerId], references: [id])
   playerId Int
   pokemons Pokemon[]
-}
+}*/
 
-
-/*model Player {
+model Player {
   user_id         String        @default(uuid())
   id              Int           @id @default(autoincrement())
   email           String        @unique
@@ -67,7 +65,10 @@ model PokemonTeam {
   losses          Int
   draws           Int
   pokemonTeams    PokemonTeam[]
-  games           Game[]        @relation("PlayerGames")
+  games1          Game[]        @relation("Player1Games")
+  games2          Game[]        @relation("Player2Games")
+  wonGames        Game[]        @relation("WonGames")
+  turns           Turn[]
 }
 
 model Pokemon {
@@ -106,12 +107,12 @@ model PokemonTeam {
 
 model Game {
   id              Int           @id @default(autoincrement())
-  player1         Player        @relation("PlayerGames", fields: [player1Id], references: [id])
+  player1         Player        @relation("Player1Games", fields: [player1Id], references: [id])
   player1Id       Int
-  player2         Player        @relation("PlayerGames", fields: [player2Id], references: [id])
+  player2         Player        @relation("Player2Games", fields: [player2Id], references: [id])
   player2Id       Int
   turns           Turn[]
-  winner          Player?       @relation(fields: [winnerId], references: [id])
+  winner          Player?       @relation("WonGames", fields: [winnerId], references: [id])
   winnerId        Int?
 }
 
@@ -123,6 +124,8 @@ model Turn {
   playerId        Int
   action          String
   turnNumber      Int
-}*/
+}
+
+
 
 

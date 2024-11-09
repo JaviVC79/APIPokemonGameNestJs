@@ -166,13 +166,16 @@ export class PokemonApiService {
   async findOneByEmail(email: string, password: string) {
     try {
       const playerData = await this.prismaService.player.findUnique({ where: { email } });
+      if (!playerData) return
       const isMatch = await bcrypt.compare(password, playerData.password);
       if (isMatch) {
         return playerData;
       }
       return
     }
-    catch (error) { return error }
+    catch (error) {
+      return error
+    }
   }
 
   async updateAll(id: number, playerDto: any, pokemonEntity: PokemonTypeEntity, auth: string, res: Response) {

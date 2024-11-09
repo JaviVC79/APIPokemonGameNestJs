@@ -51,7 +51,9 @@ export class PokemonApiController {
       res.status(HttpStatus.CREATED)
       .location(`${baseUrl}/teams`)
       .json(newTeam);
-    } catch (error) { console.log(error) }
+    } catch (error) { console.log(error)
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+     }
 
   }
 
