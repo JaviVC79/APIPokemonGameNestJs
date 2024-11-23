@@ -1,7 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-
 import { PokemonApiService } from './pokemon-api.service';
-import { Player } from '@prisma/client'; 
 import { JwtService } from '@nestjs/jwt';
 
 @Injectable()

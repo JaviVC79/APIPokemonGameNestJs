@@ -6,11 +6,12 @@ import { AuthService } from './authUser.service';
 import { HashService } from './hash/hash.service';
 import { JwtModule } from '@nestjs/jwt';
 import { jwtConstants } from './hash/constants';
+import { GameService } from './game.service';
 
 
 @Module({
   controllers: [PokemonApiController],
-  providers: [PokemonApiService, PrismaService, AuthService, HashService],
+  providers: [PokemonApiService, PrismaService, AuthService, HashService, GameService],
   imports: [JwtModule.register({
     global: true,
     secret: jwtConstants.secret,

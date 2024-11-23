@@ -8,6 +8,7 @@ import { Response } from 'express';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './authUser.service';
 import { baseUrl } from './hash/constants';
+import { GameService } from './game.service';
 
 
 @Controller('pokemon-api')
@@ -15,6 +16,7 @@ export class PokemonApiController {
   constructor(
     private readonly pokemonApiService: PokemonApiService,
     private readonly authService: AuthService,
+    private readonly GameService: GameService
   ) { }
 
 
@@ -54,7 +56,20 @@ export class PokemonApiController {
     } catch (error) { console.log(error)
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
      }
+  }
 
+  @UseGuards(AuthGuard)
+  @Post('startGame')
+  async startGame(@Body() playersId: any, @Headers('authorization') auth: string, @Res() res: Response) {
+    console.log(playersId)
+    try {
+      const newGame = await this.GameService.startGame(playersId, auth);
+      res.status(HttpStatus.CREATED)
+      //.location(`${baseUrl}/teams`)
+      .json(newGame);
+    } catch (error) { console.log(error)
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+     }
   }
 
   @UseGuards(AuthGuard)

@@ -62,6 +62,7 @@ export class PokemonApiService {
       return newTeam;
     } catch (error) {
       console.log(error)
+      return error;
     }
   }
   async createPokemonAndStats(pokemonData: any, auth: string) {
