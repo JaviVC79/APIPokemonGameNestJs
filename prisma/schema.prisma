@@ -9,51 +9,7 @@ datasource PokGame {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-/*model Player {
-  user_id         String        @default(uuid())
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  nickName     String
-  password     String
-  wins         Int
-  losses       Int
-  draws        Int
-  pokemonTeams PokemonTeam[]
-}
 
-model Pokemon {
-  user_id         String        
-  id        Int     @id @default(autoincrement())
-  name      String
-  stats     Stats   @relation(fields: [statsId], references: [id])
-  statsId   Int     @unique
-  types     String
-  abilities String
-  moves     String
-  team      PokemonTeam? @relation(fields: [teamId], references: [id])
-  teamId    Int?
-}
-
-model Stats {
-  user_id         String        
-  id        Int      @id @default(autoincrement())
-  hp        Int
-  attack    Int
-  specialAttack Int
-  defense   Int
-  specialDefense Int
-  speed     Int
-  pokemon   Pokemon?
-}
-
-model PokemonTeam {
-  user_id         String       
-  id       Int       @id @default(autoincrement())
-  name     String    
-  player   Player    @relation(fields: [playerId], references: [id])
-  playerId Int
-  pokemons Pokemon[]
-}*/
 
 model Player {
   user_id         String        @default(uuid())
@@ -65,8 +21,6 @@ model Player {
   losses          Int
   draws           Int
   pokemonTeams    PokemonTeam[]
-  games1          Game[]        @relation("Player1Games")
-  games2          Game[]        @relation("Player2Games")
   wonGames        Game[]        @relation("WonGames")
   turns           Turn[]
 }
@@ -106,11 +60,11 @@ model PokemonTeam {
 }
 
 model Game {
+  user_id1         String?
+  user_id2         String?
   id              Int           @id @default(autoincrement())
-  player1         Player        @relation("Player1Games", fields: [player1Id], references: [id])
-  player1Id       Int
-  player2         Player        @relation("Player2Games", fields: [player2Id], references: [id])
-  player2Id       Int
+  player1TeamId       Int?
+  player2TeamId       Int?
   turns           Turn[]
   winner          Player?       @relation("WonGames", fields: [winnerId], references: [id])
   winnerId        Int?

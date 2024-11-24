@@ -51,25 +51,25 @@ export class PokemonApiController {
     try {
       const newTeam = await this.pokemonApiService.createTeam(pokemonTeamDto, auth);
       res.status(HttpStatus.CREATED)
-      .location(`${baseUrl}/teams`)
-      .json(newTeam);
-    } catch (error) { console.log(error)
+        .location(`${baseUrl}/teams`)
+        .json(newTeam);
+    } catch (error) {
+      console.log(error)
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
-     }
+    }
   }
 
   @UseGuards(AuthGuard)
   @Post('startGame')
   async startGame(@Body() playersId: any, @Headers('authorization') auth: string, @Res() res: Response) {
-    console.log(playersId)
     try {
       const newGame = await this.GameService.startGame(playersId, auth);
-      res.status(HttpStatus.CREATED)
-      //.location(`${baseUrl}/teams`)
-      .json(newGame);
-    } catch (error) { console.log(error)
+      console.log(newGame)
+      return res.json(newGame);
+    } catch (error) {
+      console.log(error)
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
-     }
+    }
   }
 
   @UseGuards(AuthGuard)
@@ -105,7 +105,12 @@ export class PokemonApiController {
     return res.json(pokemon);
   }
 
-
+  @UseGuards(AuthGuard)
+  @Get('games')
+  async getGamesByUser(@Headers('authorization') auth: string, @Res() res: Response) {
+    const games = await this.GameService.getGamesByUser(auth);
+    return res.json(games);
+  }
 
 
   //Patch Methods----------------------------------------------------------------------------------------------------------------------------------------------
