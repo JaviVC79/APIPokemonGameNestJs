@@ -9,8 +9,6 @@ JwtModule.register({
   secret: jwtConstants.secret,
   signOptions: { algorithm: jwtConstants.signOptions.algorithm, expiresIn: '1d' },
 });
-console.log(jwtConstants.signOptions.algorithm)
-const configService = new ConfigService();
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -28,8 +26,6 @@ export class JwtAuthGuard implements CanActivate {
         algorithms: [jwtConstants.signOptions.algorithm]
       });
       request.user = decoded;
-      //console.log(decoded)
-      //console.log(request.user)
       return true;
     } catch (error) {
       return false;

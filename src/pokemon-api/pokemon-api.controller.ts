@@ -24,9 +24,12 @@ export class PokemonApiController {
   @Post('login')
   async signIn(@Body() user: any, @Res({ passthrough: true }) response: Response) {
     const userJwt = await this.authService.signIn(user);
-    response.cookie('jwt', userJwt)
-    response.cookie('userEmail', user.email)
-    return userJwt
+    //response.cookie('jwt', userJwt)
+    //response.cookie('userEmail', user.email)
+    const SearchUser = await this.pokemonApiService.findOneByEmail(user.email, user.password)
+    const user_id = SearchUser.user_id
+    //console.log(SearchUser)
+    return { access_token: userJwt.access_token, user_id: user_id, email: user.email }
   }
 
   @Post()
