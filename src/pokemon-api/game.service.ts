@@ -4,6 +4,7 @@ import { HashService } from "./hash/hash.service";
 import { JwtService } from "@nestjs/jwt";
 import { Game } from "@prisma/client";
 import { jwtConstants } from "./hash/constants";
+import { UUIDTypes, v4 as uuidv4 } from 'uuid';
 
 export interface GameState {
     id: number;
@@ -12,7 +13,7 @@ export interface GameState {
     winnerId: number | null;
     user_id1: string | null;
     user_id2: string | null;
-  }
+}
 
 @Injectable()
 export class GameService {
@@ -54,7 +55,7 @@ export class GameService {
             //console.log(playerGames)
             if (playerGames.length > 0) {
                 console.log("you already have a started game")
-                return { status: HttpStatus.BAD_REQUEST, message: "you already have a started game" }
+                return { status: HttpStatus.BAD_REQUEST, message: "you already have a started game", gameId: playerGames[0].id  }
             }
             if (awaitingPlayers.length == 0 || firtsFile.user_id1 == userId) {
                 const newGame = await this.prismaService.game.create({ data: { player1TeamId: playersId.player1TeamId, user_id1: userId } });
@@ -71,7 +72,7 @@ export class GameService {
                     user_id2: userId,
                 }
             })
-            return { status: HttpStatus.CREATED, message: "game started", data: data }
+            return { status: HttpStatus.CREATED, message: "game started", gameId: data.id }
         } catch (error) {
             console.log(error)
             return error
@@ -91,33 +92,31 @@ export class GameService {
         }
 
     }
-    async findGameByUser(userId: string | string[]) {
-        if (Array.isArray(userId)) {
-            if (userId.length === 1) { return await this.prismaService.game.findFirst({ where: { OR: [{ user_id1: userId[0] }, { user_id2: userId[0] }] } }); }
-        }
-        if (typeof userId === 'string') {
-            return await this.prismaService.game.findFirst({ where: { OR: [{ user_id1: userId }, { user_id2: userId }] } });
-        }
-
+    isValidUUID(uuid: UUIDTypes): boolean { const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; return regex.test(uuid.toString()); }
+    async findGameByUser(userId: UUIDTypes) {
+        // Verificar que el userId sea un UUID válido 
+        console.log(userId)
+        if (!this.isValidUUID(userId)) { throw new Error('Invalid UUID format'); }
+        return await this.prismaService.game.findFirst({ where: { OR: [{ user_id1: userId.toString() }, { user_id2: userId.toString() }] } });
     }
 
     private games: Map<string, GameState> = new Map();
     private waitingPlayers: string[] = [];
-  
+
     saveGameState(room: string, state: GameState) {
-      this.games.set(room, state);
+        this.games.set(room, state);
     }
-  
+
     getGameState(room: string): GameState | undefined {
-      return this.games.get(room);
+        return this.games.get(room);
     }
-  
+
     addWaitingPlayer(playerId: string) {
-      this.waitingPlayers.push(playerId);
+        this.waitingPlayers.push(playerId);
     }
-  
+
     getWaitingPlayer(): string | undefined {
-      return this.waitingPlayers.shift();
+        return this.waitingPlayers.shift();
     }
 
 }
