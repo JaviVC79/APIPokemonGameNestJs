@@ -274,7 +274,32 @@ export class PokemonApiService {
             id: id,
           },
         });
+        //Modificar o Eliminar el registro en la tabla Games
+        const gamesInFirst = await this.prismaService.game.findMany({
+          where: { player1TeamId: id }
+        });
+        const gamesInSecond = await this.prismaService.game.findMany({
+          where: { player2TeamId: id }
+        });
+        if (gamesInFirst.length > 0) {
+          await this.prismaService.game.delete({
+            where: { id: gamesInFirst[0].id }
+          });
+        
+          await this.prismaService.game.create({
+            data: { player1TeamId: gamesInFirst[0].player2TeamId, user_id1: gamesInFirst[0].user_id2, player2TeamId: null, user_id2: null }
+          });
+        }
+        if (gamesInSecond.length > 0){
+          await this.prismaService.game.update({
+            where: { id: gamesInSecond[0].id },
+            data: { player2TeamId: null, user_id2: null }
+          });
+        }
+
+
       });
+
     } catch (error) {
       console.log(error);
       if (error.code === 'P2003') {
@@ -346,5 +371,20 @@ export class PokemonApiService {
     }
 
   }
+
+  /*async findPokemonsAndHisStatsByUserIdAndTeams(auth:string, team:string){
+    const userId = await this.extractUserIdFromToken(auth)
+    try {
+      const pokemons = await this.prismaService.pokemon.findMany({ where: { user_id: userId, teamId: parseInt(team) } });
+      const stats = await Promise.all(pokemons.map(async (pokemon) => await this.prismaService.stats.findUnique({ where: { id: pokemon.statsId } })));
+      const pokemonsAndStats = pokemons.map((pokemon, index) => ({
+        ...pokemon,
+        stats: stats[index]
+      }));
+      return { pokemonsAndStats, status: HttpStatus.OK, message: "Pokemons has been found successfully" }
+    } catch (error) {
+      console.log(error)
+    }
+  }*/
 
 }

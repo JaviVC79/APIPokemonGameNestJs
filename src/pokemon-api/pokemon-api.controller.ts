@@ -100,6 +100,13 @@ export class PokemonApiController {
   async findPokemonsAndHisStatsByUserId(@Headers('authorization') auth: string) {
     return await this.pokemonApiService.findPokemonsAndHisStatsByUserId(auth);
   }
+  //Get pokemons by user_id and team
+  /*@UseGuards(AuthGuard)
+  @Get('pokemonsByTeam/:team')
+  async findPokemonsAndHisStatsByUserIdAndTeams(@Headers('authorization') auth: string,@Param('team') team: string ) {
+    return await this.pokemonApiService.findPokemonsAndHisStatsByUserIdAndTeams(auth, team);
+  }*/
+
   //Get by Player id
   @UseGuards(AuthGuard)
   @Get('player/:id')

@@ -15,27 +15,42 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
   constructor(private gameService: GameService) { }
 
   async handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
     const user_id = client.handshake.headers.user_id
+    //Validar que el cliente esté identificado
     if (!user_id || user_id === "" || user_id.length === 0) {
-      console.log("1")
       this.handleDisconnect(client)
       return
     }
     if (Array.isArray(user_id)) {
-      console.log("2")
       this.handleDisconnect(client)
       return
     }
+    //Validar si el cliente tiene un juego iniciado
     const games = await this.gameService.findGameByUser(user_id)
-    if(!games){
-      console.log("3")
+    if (!games) {
       this.handleDisconnect(client)
       return
     }
-    const room= games.id.toString();
+    const room = games.id.toString();
+    client.user_id = user_id;
+
+    // Validar si el cliente ya está en la room
+    const clientsInRoom = this.server.sockets.adapter.rooms.get(room);
+    if (clientsInRoom) {
+      for (const clientId of clientsInRoom) {
+        const socket = this.server.sockets.sockets.get(clientId);
+        if (socket && socket.user_id === user_id) {
+          console.log(`Client with user_id ${user_id} is already in room ${room}`);
+          return;
+        }
+      }
+    }
+    if (room == "") {
+      this.handleDisconnect(client)
+      return
+    }
     client.join(room);
-    console.log("joined " + "client: " + client.id + " room: " + room)
+    console.log("handleConnection joined " + "client: " + client.id + " room: " + room)
     this.server.to(client.id).emit('joinRoom', room);
   }
 
@@ -50,27 +65,17 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
     console.log(`Client disconnected: ${client.id}`);
   }
 
-  /*@SubscribeMessage('joinRoom')
-  handleJoinRoom(client: Socket, room: string) {
-    console.log("joined " + "client: " + client.id + " room: " + room)
-    client.join(room);
-    const gameState = this.gameService.getGameState(room);
-    if (gameState) {
-      client.emit('restoreGame', gameState);
-    }
-  }*/
-
   @SubscribeMessage('joinRoom')
   handleJoinRoom(client: Socket, room: string) {
     if (!client.rooms.has(room)) {
-      console.log(`joined client: ${client.id} room: ${room}`);
+      console.log(`handleJoinRoom joined client: ${client.id} room: ${room}`);
       client.join(room);
       const gameState = this.gameService.getGameState(room);
       if (gameState) {
         client.emit('restoreGame', gameState);
       }
     } else {
-      console.log(`Client ${client.id} is already in room ${room}`);
+      //console.log(`Client ${client.id} is already in room ${room}`);
     }
   }
 
@@ -81,8 +86,29 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
 
   @SubscribeMessage('sendMessage')
   handleMessage(client: Socket, payload: { room: string, message: string }) {
-    this.server.to(payload.room).emit('sendMessage', payload.message);
+    console.log("en sendMessage", payload)
+    //client.broadcast.to(payload.room).emit('sendMessage', payload.message);
+    client.broadcast.in(payload.room).to(payload.room).emit('sendMessage', payload.message);
   }
+
+  @SubscribeMessage('attack')
+  async attack(client: Socket, payload: { room: string, message: any }) {
+    const numberOfConnectedClients = this.getNumberOfClientsInRoom(payload.room)
+    if (numberOfConnectedClients !== 2) {
+      client.emit('attack', { message: "Your opponent is not connected" });
+      return
+    }
+    const attackResponse = await this.gameService.attack(Array.from(client.rooms)[1], payload.message)
+    console.log("ataque")
+    client.broadcast.to(payload.room).emit('attack', attackResponse);
+  }
+  private getNumberOfClientsInRoom(room: string) {
+    const roomInfo = this.server.sockets.adapter.rooms.get(room);
+    const numberOfClients = roomInfo ? roomInfo.size : 0;
+    console.log(`Number of clients in room ${room}: ${numberOfClients}`);
+    return numberOfClients;
+  }
+
 }
 
 
