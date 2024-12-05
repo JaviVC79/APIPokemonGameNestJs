@@ -22,7 +22,6 @@ model Player {
   draws           Int
   pokemonTeams    PokemonTeam[]
   wonGames        Game[]        @relation("WonGames")
-  turns           Turn[]
 }
 
 model Pokemon {
@@ -65,20 +64,13 @@ model Game {
   id              Int           @id @default(autoincrement())
   player1TeamId       Int?
   player2TeamId       Int?
-  turns           Turn[]
-  winner          Player?       @relation("WonGames", fields: [winnerId], references: [id])
+  turn_user_id    String
+  winner          Player?      @relation("WonGames", fields: [winnerId], references: [id]) 
   winnerId        Int?
 }
 
-model Turn {
-  id              Int           @id @default(autoincrement())
-  game            Game          @relation(fields: [gameId], references: [id])
-  gameId          Int
-  player          Player        @relation(fields: [playerId], references: [id])
-  playerId        Int
-  action          String
-  turnNumber      Int
-}
+
+
 
 
 

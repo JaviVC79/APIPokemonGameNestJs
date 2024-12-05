@@ -20,7 +20,6 @@ export interface GameState {
 @Injectable()
 export class GameService {
 
-
     constructor(private prismaService: PrismaService,
         private hashService: HashService,
         private jwtService: JwtService,
@@ -48,7 +47,7 @@ export class GameService {
     }
 
     async startGame(playersId: Partial<Game>, auth: string) {
-        console.log("En gameservice",playersId)
+        //console.log("En gameservice",playersId)
         const userId = await this.extractUserIdFromToken(auth)
         //console.log(userId)
         try {
@@ -62,7 +61,7 @@ export class GameService {
                 return { status: HttpStatus.BAD_REQUEST, message: "you already have a started game", gameId: playerGames[0].id }
             }
             if (awaitingPlayers.length == 0 || firtsFile.user_id1 == userId) {
-                const newGame = await this.prismaService.game.create({ data: { player1TeamId: playersId.player1TeamId, user_id1: userId } });
+                const newGame = await this.prismaService.game.create({ data: { player1TeamId: playersId.player1TeamId, user_id1: userId, turn_user_id: userId } });
                 return { status: HttpStatus.CREATED, message: "waiting for another player, check later please", gameId: newGame.id }
             }
 
@@ -75,6 +74,7 @@ export class GameService {
                     user_id2: userId,
                 }
             })
+            //const newTurn = await this.prismaService.turn.create({ data: { gameId: awaitingPlayers[0].id, playerId: awaitingPlayers[0].player1TeamId, action: "start", turnNumber: 1 } })
             return { status: HttpStatus.CREATED, message: "game started", gameId: data.id }
         } catch (error) {
             console.log(error)
@@ -123,43 +123,55 @@ export class GameService {
     }
     async attack(gameId: any, pokemon: any) {
         const {
-            attackedPokemon,
-            attackedPokemonStats,
-            attackingPokemon,
-            attackingPokemonStats
+            opponentPokemon,
+            opponentPokemonStats,
+            playerPokemon,
+            playerPokemonStats
         } = await this.getPokemonsCombatData(gameId, pokemon);
-        const newHpPokemonAttacked = Math.round(attackedPokemonStats.hp - (attackingPokemonStats.attack - (attackedPokemonStats.defense / 2)))
-        if (newHpPokemonAttacked >= attackedPokemonStats.hp) {
-            console.log("Your opponent has attacked you, but you have not taken any damage.")
-            return "Your opponent has attacked you, but you have not taken any damage."
+        const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } })
+        const turn = game.turn_user_id
+        if (turn !== pokemon.user_id) {
+            console.log("It's not your turn")
+            return "It's not your turn"
         }
-        if (newHpPokemonAttacked < attackedPokemonStats.hp) {
-            const updatedStats = await this.prismaService.stats.update({ where: { id: attackedPokemon.statsId }, data: { hp: newHpPokemonAttacked } })
+        await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { turn_user_id: opponentPokemon.user_id } })
+        const probabilityPokemon = this.probabilisticEvent(playerPokemonStats.speed + playerPokemonStats.attack - opponentPokemonStats.defense - opponentPokemonStats.speed);
+        if (!probabilityPokemon) {
+            console.log("Your opponent has attacked you, but you you have dodged the attack.")
+            return { message: "Your opponent has attacked you, but you you have dodged the attack." }
+        }
+        const newHpPokemonAttacked = Math.round(opponentPokemonStats.hp - (playerPokemonStats.attack - (opponentPokemonStats.defense / 2)))
+        if (newHpPokemonAttacked >= opponentPokemonStats.hp) {
+            console.log("Your opponent has attacked you, but you have not taken any damage.")
+            return { message: "Your opponent has attacked you, but you have not taken any damage." }
+        }
+        if (newHpPokemonAttacked < opponentPokemonStats.hp) {
+            const updatedStats = await this.prismaService.stats.update({ where: { id: opponentPokemon.statsId }, data: { hp: newHpPokemonAttacked } })
             if (updatedStats.hp > 0) {
                 console.log({
-                    message: `Your opponent has attacked you, and you take ${Math.round(attackingPokemonStats.attack - (attackedPokemonStats.defense / 2))} damage. 
+                    message: `Your opponent has attacked you, and you take ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage. 
                     Your remaining HP is ${updatedStats.hp}`,
-                    damage: Math.round(attackingPokemonStats.attack - (attackedPokemonStats.defense / 2)),
+                    damage: Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2)),
                     hp: updatedStats.hp,
-                    pokemon:{pokemon:attackedPokemon,stats:updatedStats}
+                    pokemon: { pokemon: opponentPokemon, stats: updatedStats }
                 })
                 return {
-                    message: `Your opponent has attacked you, and you take ${Math.round(attackingPokemonStats.attack - (attackedPokemonStats.defense / 2))} damage. 
+                    message: `Your opponent has attacked you, and you take ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage. 
                     Your remaining HP is ${updatedStats.hp}`,
-                    damage: Math.round(attackingPokemonStats.attack - (attackedPokemonStats.defense / 2)),
+                    damage: Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2)),
                     hp: updatedStats.hp,
-                    pokemon:{pokemon:attackedPokemon,stats:updatedStats}
+                    pokemon: { pokemon: opponentPokemon, stats: updatedStats }
                 }
             } else {
                 await this.prismaService.$transaction(async (prisma) => {
-                    await prisma.pokemon.delete({ where: { id: attackedPokemon.id } })
-                    await prisma.stats.delete({ where: { id: attackedPokemon.statsId } })
+                    await prisma.pokemon.delete({ where: { id: opponentPokemon.id } })
+                    await prisma.stats.delete({ where: { id: opponentPokemon.statsId } })
                 })
             }
-            const pokemonsTeamAttacked = await this.prismaService.pokemon.findMany({ where: { teamId: attackedPokemon.teamId } })
+            const pokemonsTeamAttacked = await this.prismaService.pokemon.findMany({ where: { teamId: opponentPokemon.teamId } })
             if (pokemonsTeamAttacked.length === 0) {
-                await this.prismaService.pokemonTeam.delete({ where: { id: attackedPokemon.teamId } })
-                await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { winnerId: attackingPokemon.teamId} })
+                await this.prismaService.pokemonTeam.delete({ where: { id: opponentPokemon.teamId } })
+                await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { winnerId: playerPokemon.teamId } })
                 console.log({ message: "Your last pokemon has been defeated, you have lost the game" })
                 return { message: "Your last pokemon has been defeated, you have lost the game" }
             } else {
@@ -171,15 +183,57 @@ export class GameService {
 
     private async getPokemonsCombatData(gameId: any, pokemon: any) {
         const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } });
-        const user_id_attack = pokemon.user_id
-        const user_id_attacked = user_id_attack == game.user_id1 ? game.user_id2 : game.user_id1;
-        const team_attacked = user_id_attack == game.user_id1 ? game.player2TeamId : game.player1TeamId;
-        console.log(team_attacked)
-        const attackedPokemon = await this.prismaService.pokemon.findFirst({ where: { user_id: user_id_attacked, teamId: team_attacked } });
-        const attackedPokemonStats = await this.prismaService.stats.findFirst({ where: { id: attackedPokemon.statsId } });
-        const attackingPokemonStats = await this.prismaService.stats.findFirst({ where: { id: pokemon.statsId } });
-        return { attackedPokemon, attackedPokemonStats, attackingPokemon: pokemon, attackingPokemonStats }
+        const user_id_player = pokemon.user_id
+        const user_id_opponent = user_id_player == game.user_id1 ? game.user_id2 : game.user_id1;
+        const team_opponent = user_id_player == game.user_id1 ? game.player2TeamId : game.player1TeamId;
+        const opponentPokemon = await this.prismaService.pokemon.findFirst({ where: { user_id: user_id_opponent, teamId: team_opponent } });
+        const opponentPokemonStats = await this.prismaService.stats.findFirst({ where: { id: opponentPokemon.statsId } });
+        const playerPokemonStats = await this.prismaService.stats.findFirst({ where: { id: pokemon.statsId } });
+        return { opponentPokemon, opponentPokemonStats, playerPokemon: pokemon, playerPokemonStats }
     }
 
+    private probabilisticEvent(probability: number): boolean {
+        const randomValue = Math.random();
+        return randomValue < Math.abs(probability);
+    }
 
+    async defense(gameId: any, pokemon: any) {
+        const {
+            opponentPokemon,
+            opponentPokemonStats,
+            playerPokemon,
+            playerPokemonStats
+        } = await this.getPokemonsCombatData(gameId, pokemon);
+        const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } })
+        const turn = game.turn_user_id
+        if (turn !== pokemon.user_id) {
+            console.log("It's not your turn")
+            return { playerMessage: { message: "It's not your turn" } }
+        }
+        await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { turn_user_id: opponentPokemon.user_id } })
+        const probabilityPokemon = this.probabilisticEvent(playerPokemonStats.speed + playerPokemonStats.defense - opponentPokemonStats.attack - opponentPokemonStats.speed);
+        if (!probabilityPokemon) {
+            console.log("Your opponent is tired; he cannot defend himself effectively against your Pokémon.")
+            return {
+                opponentMessage: { message: "Your opponent is tired; he cannot defend himself effectively against your Pokémon." }
+                ,
+                playerMessage: {
+                    message: "You are too tired, your defense is not effective."
+                }
+            }
+        }
+        const newHpPokemonDefended = Math.round(playerPokemonStats.hp + (playerPokemonStats.defense / 2))
+        const updatedStats = await this.prismaService.stats.update({ where: { id: playerPokemon.statsId }, data: { hp: newHpPokemonDefended } })
+        return {
+            opponentMessage: {
+                message: `Your opponent defense is already effective. 
+        His remaining HP is ${updatedStats.hp}`
+            }
+            ,
+            playerMessage: {
+                message: `Your defense is already effective. 
+        Your remaining HP is ${updatedStats.hp}`
+            }
+        }
+    }
 }

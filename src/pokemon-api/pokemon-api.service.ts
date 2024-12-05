@@ -287,7 +287,7 @@ export class PokemonApiService {
           });
         
           await this.prismaService.game.create({
-            data: { player1TeamId: gamesInFirst[0].player2TeamId, user_id1: gamesInFirst[0].user_id2, player2TeamId: null, user_id2: null }
+            data: { player1TeamId: gamesInFirst[0].player2TeamId, user_id1: gamesInFirst[0].user_id2, player2TeamId: null, user_id2: null, turn_user_id: gamesInFirst[0].user_id2 }
           });
         }
         if (gamesInSecond.length > 0){

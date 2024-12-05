@@ -109,6 +109,37 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
     return numberOfClients;
   }
 
+  @SubscribeMessage('defense')
+  async defense(client: Socket, payload: { room: string, message: any }) {
+    const numberOfConnectedClients = this.getNumberOfClientsInRoom(payload.room)
+    if (numberOfConnectedClients !== 2) {
+      client.emit('attack', { message: "Your opponent is not connected" });
+      return
+    }
+    const clientsInRoom = this.getClients(payload.room, client.user_id)
+    const defenseResponse = await this.gameService.defense(Array.from(client.rooms)[1], payload.message)
+    console.log("defensa")
+    // Enviar mensaje al emisor 
+    client.emit('defense', defenseResponse.playerMessage);
+    // Enviar mensaje a los demás clientes en la sala 
+    client.broadcast.to(payload.room).emit('defense', defenseResponse.opponentMessage)
+  }
+  private getClients(room: string, user_id: string) {
+    let users_id_room: any[] = [];
+    const clientsInRoom = this.server.sockets.adapter.rooms.get(room);
+    if (clientsInRoom) {
+      for (const clientId of clientsInRoom) {
+        const socket = this.server.sockets.sockets.get(clientId);
+        if (socket && socket.user_id === user_id) {
+          users_id_room.push({ emisor: socket.id });
+        } else if (socket && socket.user_id !== user_id) {
+          users_id_room.push({ receptor: socket.id });
+        }
+      }
+      return ({ emisor: users_id_room[0], receptor: users_id_room[1] })
+    }
+  }
+
 }
 
 

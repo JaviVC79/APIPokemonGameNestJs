@@ -67,7 +67,7 @@ export class PokemonApiController {
   async startGame(@Body() playersId: any, @Headers('authorization') auth: string, @Res() res: Response) {
     try {
       const newGame = await this.GameService.startGame(playersId, auth);
-      console.log(newGame)
+      //console.log("post startGgame",newGame)
       return res.json(newGame);
     } catch (error) {
       console.log(error)
