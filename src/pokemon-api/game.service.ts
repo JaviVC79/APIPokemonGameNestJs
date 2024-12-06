@@ -132,18 +132,28 @@ export class GameService {
         const turn = game.turn_user_id
         if (turn !== pokemon.user_id) {
             console.log("It's not your turn")
-            return "It's not your turn"
+            return { playerMessage: { message: "It's not your turn" } }
         }
         await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { turn_user_id: opponentPokemon.user_id } })
         const probabilityPokemon = this.probabilisticEvent(playerPokemonStats.speed + playerPokemonStats.attack - opponentPokemonStats.defense - opponentPokemonStats.speed);
         if (!probabilityPokemon) {
             console.log("Your opponent has attacked you, but you you have dodged the attack.")
-            return { message: "Your opponent has attacked you, but you you have dodged the attack." }
+            return { opponentMessage:{message: "Your opponent has attacked you, but you have dodged the attack." }
+                ,
+                playerMessage: {
+                    message: "Your attack is not effective."
+                }
+            }
         }
         const newHpPokemonAttacked = Math.round(opponentPokemonStats.hp - (playerPokemonStats.attack - (opponentPokemonStats.defense / 2)))
         if (newHpPokemonAttacked >= opponentPokemonStats.hp) {
             console.log("Your opponent has attacked you, but you have not taken any damage.")
-            return { message: "Your opponent has attacked you, but you have not taken any damage." }
+            return { opponentMessage:{message: "Your opponent has attacked you, but you have not taken any damage." }
+                ,
+                playerMessage: {
+                    message: "Your attack is not effective."
+                }
+            }
         }
         if (newHpPokemonAttacked < opponentPokemonStats.hp) {
             const updatedStats = await this.prismaService.stats.update({ where: { id: opponentPokemon.statsId }, data: { hp: newHpPokemonAttacked } })
@@ -156,11 +166,16 @@ export class GameService {
                     pokemon: { pokemon: opponentPokemon, stats: updatedStats }
                 })
                 return {
-                    message: `Your opponent has attacked you, and you take ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage. 
+                    opponentMessage:{message: `Your opponent has attacked you, and you take ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage. 
                     Your remaining HP is ${updatedStats.hp}`,
                     damage: Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2)),
                     hp: updatedStats.hp,
                     pokemon: { pokemon: opponentPokemon, stats: updatedStats }
+                }
+                ,
+                    playerMessage: {
+                        message: `Your attacked is effective, and you caused ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage`
+                    }
                 }
             } else {
                 await this.prismaService.$transaction(async (prisma) => {
@@ -173,10 +188,18 @@ export class GameService {
                 await this.prismaService.pokemonTeam.delete({ where: { id: opponentPokemon.teamId } })
                 await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { winnerId: playerPokemon.teamId } })
                 console.log({ message: "Your last pokemon has been defeated, you have lost the game" })
-                return { message: "Your last pokemon has been defeated, you have lost the game" }
+                return { opponentMessage:{message: "Your last pokemon has been defeated, you have lost the game" }
+                    ,
+                    playerMessage: {
+                        message: "You have been defeated last opponent pokemon, you have win the game"
+                    }}
             } else {
                 console.log({ message: "Your pokemon has been defeated" })
-                return { message: "Your pokemon has been defeated" }
+                return { opponentMessage:{message: "Your pokemon has been defeated" }
+                ,
+                playerMessage: {
+                    message: "You have been defeated opponent pokemon"
+                }}
             }
         }
     }

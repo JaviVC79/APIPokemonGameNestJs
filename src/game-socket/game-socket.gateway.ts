@@ -100,8 +100,12 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
     }
     const attackResponse = await this.gameService.attack(Array.from(client.rooms)[1], payload.message)
     console.log("ataque")
-    client.broadcast.to(payload.room).emit('attack', attackResponse);
+       // Enviar mensaje al emisor 
+       client.emit('attack', attackResponse.playerMessage);
+       // Enviar mensaje a los demás clientes en la sala 
+       client.broadcast.to(payload.room).emit('attack', attackResponse.opponentMessage)
   }
+
   private getNumberOfClientsInRoom(room: string) {
     const roomInfo = this.server.sockets.adapter.rooms.get(room);
     const numberOfClients = roomInfo ? roomInfo.size : 0;
@@ -116,7 +120,7 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
       client.emit('attack', { message: "Your opponent is not connected" });
       return
     }
-    const clientsInRoom = this.getClients(payload.room, client.user_id)
+    //const clientsInRoom = this.getClients(payload.room, client.user_id)
     const defenseResponse = await this.gameService.defense(Array.from(client.rooms)[1], payload.message)
     console.log("defensa")
     // Enviar mensaje al emisor 
@@ -124,7 +128,7 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
     // Enviar mensaje a los demás clientes en la sala 
     client.broadcast.to(payload.room).emit('defense', defenseResponse.opponentMessage)
   }
-  private getClients(room: string, user_id: string) {
+  /*private getClients(room: string, user_id: string) {
     let users_id_room: any[] = [];
     const clientsInRoom = this.server.sockets.adapter.rooms.get(room);
     if (clientsInRoom) {
@@ -138,7 +142,7 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
       }
       return ({ emisor: users_id_room[0], receptor: users_id_room[1] })
     }
-  }
+  }*/
 
 }
 
