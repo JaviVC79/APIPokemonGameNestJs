@@ -138,7 +138,9 @@ export class GameService {
         const probabilityPokemon = this.probabilisticEvent(playerPokemonStats.speed + playerPokemonStats.attack - opponentPokemonStats.defense - opponentPokemonStats.speed);
         if (!probabilityPokemon) {
             console.log("Your opponent has attacked you, but you you have dodged the attack.")
-            return { opponentMessage:{message: "Your opponent has attacked you, but you have dodged the attack." }
+            return {
+                pokemon: playerPokemon,
+                opponentMessage: { message: "Your opponent has attacked you, but you have dodged the attack." }
                 ,
                 playerMessage: {
                     message: "Your attack is not effective."
@@ -148,7 +150,9 @@ export class GameService {
         const newHpPokemonAttacked = Math.round(opponentPokemonStats.hp - (playerPokemonStats.attack - (opponentPokemonStats.defense / 2)))
         if (newHpPokemonAttacked >= opponentPokemonStats.hp) {
             console.log("Your opponent has attacked you, but you have not taken any damage.")
-            return { opponentMessage:{message: "Your opponent has attacked you, but you have not taken any damage." }
+            return {
+                pokemon: playerPokemon,
+                opponentMessage: { message: "Your opponent has attacked you, but you have not taken any damage." }
                 ,
                 playerMessage: {
                     message: "Your attack is not effective."
@@ -166,13 +170,15 @@ export class GameService {
                     pokemon: { pokemon: opponentPokemon, stats: updatedStats }
                 })
                 return {
-                    opponentMessage:{message: `Your opponent has attacked you, and you take ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage. 
+                    pokemon: playerPokemon,
+                    opponentMessage: {
+                        message: `Your opponent has attacked you, and you take ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage. 
                     Your remaining HP is ${updatedStats.hp}`,
-                    damage: Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2)),
-                    hp: updatedStats.hp,
-                    pokemon: { pokemon: opponentPokemon, stats: updatedStats }
-                }
-                ,
+                        damage: Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2)),
+                        hp: updatedStats.hp,
+                        pokemon: { pokemon: opponentPokemon, stats: updatedStats }
+                    }
+                    ,
                     playerMessage: {
                         message: `Your attacked is effective, and you caused ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage`
                     }
@@ -188,18 +194,24 @@ export class GameService {
                 await this.prismaService.pokemonTeam.delete({ where: { id: opponentPokemon.teamId } })
                 await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { winnerId: playerPokemon.teamId } })
                 console.log({ message: "Your last pokemon has been defeated, you have lost the game" })
-                return { opponentMessage:{message: "Your last pokemon has been defeated, you have lost the game" }
+                return {
+                    pokemon: playerPokemon,
+                    opponentMessage: { message: "Your last pokemon has been defeated, you have lost the game" }
                     ,
                     playerMessage: {
                         message: "You have been defeated last opponent pokemon, you have win the game"
-                    }}
+                    }
+                }
             } else {
                 console.log({ message: "Your pokemon has been defeated" })
-                return { opponentMessage:{message: "Your pokemon has been defeated" }
-                ,
-                playerMessage: {
-                    message: "You have been defeated opponent pokemon"
-                }}
+                return {
+                    pokemon: playerPokemon,
+                    opponentMessage: { message: "Your pokemon has been defeated" }
+                    ,
+                    playerMessage: {
+                        message: "You have been defeated opponent pokemon"
+                    }
+                }
             }
         }
     }
@@ -238,6 +250,7 @@ export class GameService {
         if (!probabilityPokemon) {
             console.log("Your opponent is tired; he cannot defend himself effectively against your Pokémon.")
             return {
+                pokemon: playerPokemon,
                 opponentMessage: { message: "Your opponent is tired; he cannot defend himself effectively against your Pokémon." }
                 ,
                 playerMessage: {
@@ -248,6 +261,7 @@ export class GameService {
         const newHpPokemonDefended = Math.round(playerPokemonStats.hp + (playerPokemonStats.defense / 2))
         const updatedStats = await this.prismaService.stats.update({ where: { id: playerPokemon.statsId }, data: { hp: newHpPokemonDefended } })
         return {
+            pokemon: playerPokemon,
             opponentMessage: {
                 message: `Your opponent defense is already effective. 
         His remaining HP is ${updatedStats.hp}`

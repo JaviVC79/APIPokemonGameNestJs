@@ -100,10 +100,10 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
     }
     const attackResponse = await this.gameService.attack(Array.from(client.rooms)[1], payload.message)
     console.log("ataque")
-       // Enviar mensaje al emisor 
-       client.emit('attack', attackResponse.playerMessage);
-       // Enviar mensaje a los demás clientes en la sala 
-       client.broadcast.to(payload.room).emit('attack', attackResponse.opponentMessage)
+    // Enviar mensaje al emisor 
+    client.emit('attack', { message: attackResponse.playerMessage, pokemon: attackResponse.pokemon });
+    // Enviar mensaje a los demás clientes en la sala 
+    client.broadcast.to(payload.room).emit('attack', { message: attackResponse.opponentMessage, pokemon: attackResponse.pokemon })
   }
 
   private getNumberOfClientsInRoom(room: string) {
@@ -124,9 +124,9 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
     const defenseResponse = await this.gameService.defense(Array.from(client.rooms)[1], payload.message)
     console.log("defensa")
     // Enviar mensaje al emisor 
-    client.emit('defense', defenseResponse.playerMessage);
+    client.emit('defense', { message: defenseResponse.playerMessage, pokemon: defenseResponse.pokemon });
     // Enviar mensaje a los demás clientes en la sala 
-    client.broadcast.to(payload.room).emit('defense', defenseResponse.opponentMessage)
+    client.broadcast.to(payload.room).emit('defense', { message: defenseResponse.opponentMessage, pokemon: defenseResponse.pokemon })
   }
   /*private getClients(room: string, user_id: string) {
     let users_id_room: any[] = [];
