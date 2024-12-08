@@ -5,7 +5,7 @@ import { JwtService } from "@nestjs/jwt";
 import { Game } from "@prisma/client";
 import { jwtConstants } from "./hash/constants";
 import { UUIDTypes, v4 as uuidv4 } from 'uuid';
-import { log } from "console";
+
 
 
 export interface GameState {
@@ -54,7 +54,7 @@ export class GameService {
             const players = await this.prismaService.game.findMany();
             const awaitingPlayers = players.filter((file) => file.player2TeamId == null)
             const firtsFile = awaitingPlayers[0]
-            const playerGames = await this.prismaService.game.findMany({ where: { OR: [{ user_id1: userId }, { user_id2: userId }] } });
+            const playerGames = await this.prismaService.game.findMany({ where: { OR: [{ user_id1: userId }, { user_id2: userId }], winnerId: null } });
             //console.log(playerGames)
             if (playerGames.length > 0) {
                 //console.log("you already have a started game")
@@ -85,8 +85,8 @@ export class GameService {
     async getGamesByUser(auth: string) {
         try {
             const userId = await this.extractUserIdFromToken(auth)
-            const gamesOnUserIsUser1 = await this.prismaService.game.findMany({ where: { user_id1: userId } });
-            const gamesOnUserIsUser2 = await this.prismaService.game.findMany({ where: { user_id2: userId } });
+            const gamesOnUserIsUser1 = await this.prismaService.game.findMany({ where: { user_id1: userId, winnerId: null } });
+            const gamesOnUserIsUser2 = await this.prismaService.game.findMany({ where: { user_id2: userId, winnerId: null } });
             const games = gamesOnUserIsUser1.concat(gamesOnUserIsUser2)
             return games
         } catch (error) {
@@ -100,7 +100,7 @@ export class GameService {
         // Verificar que el userId sea un UUID válido 
         //console.log(userId)
         if (!this.isValidUUID(userId)) { throw new Error('Invalid UUID format'); }
-        return await this.prismaService.game.findFirst({ where: { OR: [{ user_id1: userId.toString() }, { user_id2: userId.toString() }] } });
+        return await this.prismaService.game.findFirst({ where: { OR: [{ user_id1: userId.toString() }, { user_id2: userId.toString() }], winnerId: null } });
     }
 
     private games: Map<string, GameState> = new Map();
@@ -192,7 +192,11 @@ export class GameService {
             const pokemonsTeamAttacked = await this.prismaService.pokemon.findMany({ where: { teamId: opponentPokemon.teamId } })
             if (pokemonsTeamAttacked.length === 0) {
                 await this.prismaService.pokemonTeam.delete({ where: { id: opponentPokemon.teamId } })
-                await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { winnerId: playerPokemon.teamId } })
+                await this.prismaService.player.updateMany({ where: { user_id: playerPokemon.user_id }, data: { wins: { increment: 1 } } })
+                const winnerData = await this.prismaService.player.findFirst({ where: { user_id: playerPokemon.user_id } })
+                await this.prismaService.player.updateMany({ where: { user_id: opponentPokemon.user_id }, data: { losses: { increment: 1 } } })
+                await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { winnerId: winnerData.id } })
+                console.log(winnerData)
                 console.log({ message: "Your last pokemon has been defeated, you have lost the game" })
                 return {
                     pokemon: playerPokemon,
@@ -229,7 +233,16 @@ export class GameService {
 
     private probabilisticEvent(probability: number): boolean {
         const randomValue = Math.random();
-        return randomValue < Math.abs(probability);
+        const absoluteProbability = Math.abs(probability)
+        let finalProbability: number;
+        if (absoluteProbability < 0) {
+            finalProbability = absoluteProbability / Math.pow(10, absoluteProbability.toString().split('.')[1].length)
+        } else {
+            finalProbability = absoluteProbability / Math.pow(10, absoluteProbability.toString().length)
+        }
+        if (finalProbability < 0.4) return true;
+        //console.log("randomValue", randomValue, "finalProbability", finalProbability)
+        return randomValue < finalProbability;
     }
 
     async defense(gameId: any, pokemon: any) {

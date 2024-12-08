@@ -120,7 +120,6 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
       client.emit('attack', { message: "Your opponent is not connected" });
       return
     }
-    //const clientsInRoom = this.getClients(payload.room, client.user_id)
     const defenseResponse = await this.gameService.defense(Array.from(client.rooms)[1], payload.message)
     console.log("defensa")
     // Enviar mensaje al emisor 
