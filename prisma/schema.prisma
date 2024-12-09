@@ -33,6 +33,7 @@ model Pokemon {
   types           String
   abilities       String
   moves           String
+  imageURL        String
   team            PokemonTeam?  @relation(fields: [teamId], references: [id])
   teamId          Int?
 }
