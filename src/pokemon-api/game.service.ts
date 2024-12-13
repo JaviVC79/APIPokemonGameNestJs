@@ -2,11 +2,34 @@ import { HttpStatus, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from './prisma.service';
 import { HashService } from "./hash/hash.service";
 import { JwtService } from "@nestjs/jwt";
-import { Game } from "@prisma/client";
+import { Game, Pokemon } from "@prisma/client";
 import { jwtConstants } from "./hash/constants";
 import { UUIDTypes, v4 as uuidv4 } from 'uuid';
 
+type PokemonType =
+    'normal' | 'fire' | 'water' | 'electric' | 'grass' | 'ice' | 'fighting' | 'poison' | 'ground' | 'flying' |
+    'psychic' | 'bug' | 'rock' | 'ghost' | 'dragon' | 'dark' | 'steel' | 'fairy';
 
+const typeEffectiveness: { [key in PokemonType]: { [key in PokemonType]?: number } } = {
+    normal: { rock: 0.5, ghost: 0, steel: 0.5 },
+    fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
+    water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
+    electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
+    grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
+    ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
+    fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
+    poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
+    ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
+    flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
+    psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
+    bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
+    rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
+    ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
+    dragon: { dragon: 2, steel: 0.5, fairy: 0 },
+    dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
+    steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
+    fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 }
+};
 
 export interface GameState {
     id: number;
@@ -47,25 +70,19 @@ export class GameService {
     }
 
     async startGame(playersId: Partial<Game>, auth: string) {
-        //console.log("En gameservice",playersId)
         const userId = await this.extractUserIdFromToken(auth)
-        //console.log(userId)
         try {
             const players = await this.prismaService.game.findMany();
             const awaitingPlayers = players.filter((file) => file.player2TeamId == null)
             const firtsFile = awaitingPlayers[0]
             const playerGames = await this.prismaService.game.findMany({ where: { OR: [{ user_id1: userId }, { user_id2: userId }], winnerId: null } });
-            //console.log(playerGames)
             if (playerGames.length > 0) {
-                //console.log("you already have a started game")
                 return { status: HttpStatus.BAD_REQUEST, message: "you already have a started game", gameId: playerGames[0].id }
             }
             if (awaitingPlayers.length == 0 || firtsFile.user_id1 == userId) {
                 const newGame = await this.prismaService.game.create({ data: { player1TeamId: playersId.player1TeamId, user_id1: userId, turn_user_id: userId } });
                 return { status: HttpStatus.CREATED, message: "waiting for another player, check later please", gameId: newGame.id }
             }
-
-
             const data = await this.prismaService.game.update({
                 where: { id: awaitingPlayers[0].id }, data: {
                     player1TeamId: awaitingPlayers[0].player1TeamId,
@@ -74,7 +91,6 @@ export class GameService {
                     user_id2: userId,
                 }
             })
-            //const newTurn = await this.prismaService.turn.create({ data: { gameId: awaitingPlayers[0].id, playerId: awaitingPlayers[0].player1TeamId, action: "start", turnNumber: 1 } })
             return { status: HttpStatus.CREATED, message: "game started", gameId: data.id }
         } catch (error) {
             console.log(error)
@@ -97,8 +113,6 @@ export class GameService {
     }
     isValidUUID(uuid: UUIDTypes): boolean { const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; return regex.test(uuid.toString()); }
     async findGameByUser(userId: UUIDTypes) {
-        // Verificar que el userId sea un UUID válido 
-        //console.log(userId)
         if (!this.isValidUUID(userId)) { throw new Error('Invalid UUID format'); }
         return await this.prismaService.game.findFirst({ where: { OR: [{ user_id1: userId.toString() }, { user_id2: userId.toString() }], winnerId: null } });
     }
@@ -121,6 +135,31 @@ export class GameService {
     getWaitingPlayer(): string | undefined {
         return this.waitingPlayers.shift();
     }
+
+    getEffectiveness(playerPokemonType: PokemonType, opponentPokemonType: PokemonType): number {
+        return typeEffectiveness[playerPokemonType][opponentPokemonType] ?? 1;
+    }
+
+    getPokemonTypes(pokemon: Pokemon): PokemonType[] {
+        return pokemon.types.split(",") as PokemonType[]
+    }
+
+    getTotalEffectiveness(playerPokemon: Pokemon, opponentPokemon: Pokemon) {
+        const playerPokemonTypes = this.getPokemonTypes(playerPokemon);
+        const opponentPokemonTypes = this.getPokemonTypes(opponentPokemon);
+        let effectiveness = 0;
+        let unitaryEffectiveness: number;
+        for (let i = 0; i < playerPokemonTypes.length; i++) {
+            for (let j = 0; j < opponentPokemonTypes.length; j++) {
+                unitaryEffectiveness = this.getEffectiveness(playerPokemonTypes[i], opponentPokemonTypes[j]);
+            }
+            if (unitaryEffectiveness > effectiveness) {
+                effectiveness = unitaryEffectiveness
+            }
+            return effectiveness;
+        }
+    }
+
     async attack(gameId: any, pokemon: any) {
         const {
             opponentPokemon,
@@ -130,14 +169,13 @@ export class GameService {
         } = await this.getPokemonsCombatData(gameId, pokemon);
         const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } })
         const turn = game.turn_user_id
+        console.log("turno",turn,pokemon.user_id)
         if (turn !== pokemon.user_id) {
-            console.log("It's not your turn")
             return { playerMessage: { message: "It's not your turn" } }
         }
         await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { turn_user_id: opponentPokemon.user_id } })
         const probabilityPokemon = this.probabilisticEvent(playerPokemonStats.speed + playerPokemonStats.attack - opponentPokemonStats.defense - opponentPokemonStats.speed);
         if (!probabilityPokemon) {
-            console.log("Your opponent has attacked you, but you you have dodged the attack.")
             return {
                 pokemon: playerPokemon,
                 opponentMessage: { message: "Your opponent has attacked you, but you have dodged the attack." }
@@ -147,9 +185,9 @@ export class GameService {
                 }
             }
         }
-        const newHpPokemonAttacked = Math.round(opponentPokemonStats.hp - (playerPokemonStats.attack - (opponentPokemonStats.defense / 2)))
+        const attackEffectiveness = this.getTotalEffectiveness(playerPokemon, opponentPokemon)
+        const newHpPokemonAttacked = Math.round(attackEffectiveness * (opponentPokemonStats.hp - (playerPokemonStats.attack - (opponentPokemonStats.defense / 2))))
         if (newHpPokemonAttacked >= opponentPokemonStats.hp) {
-            console.log("Your opponent has attacked you, but you have not taken any damage.")
             return {
                 pokemon: playerPokemon,
                 opponentMessage: { message: "Your opponent has attacked you, but you have not taken any damage." }
@@ -162,13 +200,6 @@ export class GameService {
         if (newHpPokemonAttacked < opponentPokemonStats.hp) {
             const updatedStats = await this.prismaService.stats.update({ where: { id: opponentPokemon.statsId }, data: { hp: newHpPokemonAttacked } })
             if (updatedStats.hp > 0) {
-                console.log({
-                    message: `Your opponent has attacked you, and you take ${Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2))} damage. 
-                    Your remaining HP is ${updatedStats.hp}`,
-                    damage: Math.round(playerPokemonStats.attack - (opponentPokemonStats.defense / 2)),
-                    hp: updatedStats.hp,
-                    pokemon: { pokemon: opponentPokemon, stats: updatedStats }
-                })
                 return {
                     pokemon: playerPokemon,
                     opponentMessage: {
@@ -196,8 +227,6 @@ export class GameService {
                 const winnerData = await this.prismaService.player.findFirst({ where: { user_id: playerPokemon.user_id } })
                 await this.prismaService.player.updateMany({ where: { user_id: opponentPokemon.user_id }, data: { losses: { increment: 1 } } })
                 await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { winnerId: winnerData.id } })
-                console.log(winnerData)
-                console.log({ message: "Your last pokemon has been defeated, you have lost the game" })
                 return {
                     pokemon: playerPokemon,
                     opponentMessage: { message: "Your last pokemon has been defeated, you have lost the game" }
@@ -207,7 +236,6 @@ export class GameService {
                     }
                 }
             } else {
-                console.log({ message: "Your pokemon has been defeated" })
                 return {
                     pokemon: playerPokemon,
                     opponentMessage: { message: "Your pokemon has been defeated" }
@@ -221,6 +249,7 @@ export class GameService {
     }
 
     private async getPokemonsCombatData(gameId: any, pokemon: any) {
+        console.log(gameId)
         const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } });
         const user_id_player = pokemon.user_id
         const user_id_opponent = user_id_player == game.user_id1 ? game.user_id2 : game.user_id1;
@@ -241,7 +270,6 @@ export class GameService {
             finalProbability = absoluteProbability / Math.pow(10, absoluteProbability.toString().length)
         }
         if (finalProbability < 0.4) return true;
-        //console.log("randomValue", randomValue, "finalProbability", finalProbability)
         return randomValue < finalProbability;
     }
 
@@ -254,6 +282,7 @@ export class GameService {
         } = await this.getPokemonsCombatData(gameId, pokemon);
         const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } })
         const turn = game.turn_user_id
+        console.log(turn)
         if (turn !== pokemon.user_id) {
             console.log("It's not your turn")
             return { playerMessage: { message: "It's not your turn" } }
