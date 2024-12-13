@@ -5,6 +5,7 @@ import { isArray } from 'class-validator';
 
 interface CustomSocket extends Socket {
   client_id: string;
+  room: string;
 }
 
 @WebSocketGateway({
@@ -21,7 +22,10 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
   activeConnections = new Map<string, string>();
 
   async handleConnection(client: Socket) {
-    const clientId = client.handshake.headers['client-id'];
+    const clientId = client.handshake.headers['client_id'];
+    const room = client.handshake.headers['room'];
+    //Verificar que el client_id es un string
+    console.log(clientId)
     if (isArray(clientId) || !clientId) {
       this.handleDisconnect(client);
       return;
@@ -60,6 +64,9 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
       console.log(`Cliente desconectado: ${client.id}`);
       this.activeConnections.delete(clientId);
     });
+    if (room && room != "") {
+      this.handleJoinRoom(client as CustomSocket, room as CustomSocket['room']);
+    }
   }
 
   handleDisconnect(client: Socket) {
@@ -71,14 +78,12 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
 
   @SubscribeMessage('joinRoom')
   handleJoinRoom(client: CustomSocket, room: string) {
-    console.log('joinRoom');
     const numberOfConnectedClients = this.getNumberOfClientsInRoom(room);
     if (numberOfConnectedClients >= 2) {
       client.disconnect();
       return;
     }
-
-    const clientId = client.handshake.headers['client-id'];
+    const clientId = client.handshake.headers['client_id'];
     if (Array.isArray(clientId)) {
       client.disconnect();
       return;
