@@ -70,7 +70,12 @@ model Game {
   winnerId        Int?
 }
 
-
+model SpecialPoints {
+  user_id         String        
+  id              Int           @id @default(autoincrement())
+  specialAttackPoints   Int
+  specialDefensePoints  Int
+}
 
 
 

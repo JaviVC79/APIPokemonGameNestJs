@@ -122,6 +122,13 @@ export class PokemonApiController {
     return res.json(games);
   }
 
+  @UseGuards(AuthGuard)
+  @Get('specialPoints')
+  async getSpecialPoints(@Headers('authorization') auth: string, @Res() res: Response) {
+    const specialPoints = await this.GameService.specialPoints(auth);
+    return res.json(specialPoints);
+  }
+
 
   //Patch Methods----------------------------------------------------------------------------------------------------------------------------------------------
   /*Patch by 

@@ -70,7 +70,7 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
   }
 
   handleDisconnect(client: Socket) {
-    const clientId = client.handshake.headers['client-id'];
+    const clientId = client.handshake.headers['client_id'];
     if (isArray(clientId)) return;
     console.log(`Cliente desconectado: ${client.id}`);
     this.activeConnections.delete(clientId);
@@ -173,6 +173,25 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
     // Enviar mensaje a los demás clientes en la sala 
     client.broadcast.to(payload.room).emit('defense', { message: defenseResponse.opponentMessage, pokemon: defenseResponse.pokemon })
   }
+  
+  @SubscribeMessage('attackAllYourEnemies')
+  async attackAllYourEnemies(client: Socket, payload: { room: string, message: any }) {
+    const numberOfConnectedClients = this.getNumberOfClientsInRoom(payload.room)
+    if (numberOfConnectedClients < 2) {
+      client.emit('attackAllYourEnemies', { message: "Your opponent is not connected" });
+      return
+    } else if (numberOfConnectedClients > 2) {
+      client.emit('attackAllYourEnemies', { message: "To many clients connected on this room" });
+      return
+    }
+    const attackAllYourEnemiesResponse = await this.gameService.attackAllYourEnemies(payload.room, payload.message)
+    console.log("attackAllYourEnemies")
+    // Enviar mensaje al emisor 
+    client.emit('attackAllYourEnemies', { message: attackAllYourEnemiesResponse.playerMessage, pokemon: attackAllYourEnemiesResponse.pokemon });
+    // Enviar mensaje a los demás clientes en la sala 
+    client.broadcast.to(payload.room).emit('attackAllYourEnemies', { message: attackAllYourEnemiesResponse.opponentMessage, pokemon: attackAllYourEnemiesResponse.pokemon })
+  }
+
 
 }
 

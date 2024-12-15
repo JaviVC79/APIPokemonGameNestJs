@@ -159,6 +159,16 @@ export class GameService {
             return effectiveness;
         }
     }
+    async specialPoints(auth: string) {
+        try {
+            const userId = await this.extractUserIdFromToken(auth)
+            const specialPoints = await this.prismaService.specialPoints.findFirst({ where: { user_id: userId } })
+            return specialPoints
+        } catch (error) {
+            console.log(error)
+            return error
+        }
+    }
 
     async attack(gameId: any, pokemon: any) {
         const {
@@ -167,9 +177,12 @@ export class GameService {
             playerPokemon,
             playerPokemonStats
         } = await this.getPokemonsCombatData(gameId, pokemon);
+        const specialPoints = await this.prismaService.specialPoints.findFirst({ where: { user_id: pokemon.user_id } })
+        if (!specialPoints) {
+            await this.prismaService.specialPoints.create({ data: { user_id: pokemon.user_id, specialDefensePoints: 0, specialAttackPoints: 0 } })
+        }
         const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } })
         const turn = game.turn_user_id
-        console.log("turno",turn,pokemon.user_id)
         if (turn !== pokemon.user_id) {
             return { playerMessage: { message: "It's not your turn" } }
         }
@@ -200,6 +213,7 @@ export class GameService {
         if (newHpPokemonAttacked < opponentPokemonStats.hp) {
             const updatedStats = await this.prismaService.stats.update({ where: { id: opponentPokemon.statsId }, data: { hp: newHpPokemonAttacked } })
             if (updatedStats.hp > 0) {
+                await this.prismaService.specialPoints.updateMany({ where: { user_id: pokemon.user_id }, data: { specialAttackPoints: { increment: 1 } } })
                 return {
                     pokemon: playerPokemon,
                     opponentMessage: {
@@ -249,7 +263,6 @@ export class GameService {
     }
 
     private async getPokemonsCombatData(gameId: any, pokemon: any) {
-        console.log(gameId)
         const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } });
         const user_id_player = pokemon.user_id
         const user_id_opponent = user_id_player == game.user_id1 ? game.user_id2 : game.user_id1;
@@ -280,6 +293,10 @@ export class GameService {
             playerPokemon,
             playerPokemonStats
         } = await this.getPokemonsCombatData(gameId, pokemon);
+        const specialPoints = await this.prismaService.specialPoints.findFirst({ where: { user_id: pokemon.user_id } })
+        if (!specialPoints) {
+            await this.prismaService.specialPoints.create({ data: { user_id: pokemon.user_id, specialDefensePoints: 0, specialAttackPoints: 0 } })
+        }
         const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } })
         const turn = game.turn_user_id
         console.log(turn)
@@ -302,6 +319,8 @@ export class GameService {
         }
         const newHpPokemonDefended = Math.round(playerPokemonStats.hp + (playerPokemonStats.defense / 2))
         const updatedStats = await this.prismaService.stats.update({ where: { id: playerPokemon.statsId }, data: { hp: newHpPokemonDefended } })
+        await this.prismaService.specialPoints.updateMany({ where: { user_id: pokemon.user_id }, data: { specialDefensePoints: { increment: 1 } } })
+        const specialPointsPlayer = await this.prismaService.specialPoints.findFirst({ where: { user_id: pokemon.user_id } })
         return {
             pokemon: playerPokemon,
             opponentMessage: {
@@ -310,8 +329,73 @@ export class GameService {
             }
             ,
             playerMessage: {
+                specialPointsPlayer: specialPointsPlayer,
                 message: `Your defense is already effective. 
         Your remaining HP is ${updatedStats.hp}`
+            }
+        }
+    }
+
+    async attackAllYourEnemies(gameId: string, pokemon: Pokemon) {
+        const {
+            opponentPokemon,
+            opponentPokemonStats,
+            playerPokemon,
+            playerPokemonStats
+        } = await this.getPokemonsCombatData(gameId, pokemon);
+        const game = await this.prismaService.game.findUnique({ where: { id: parseInt(gameId) } })
+        const turn = game.turn_user_id
+        if (turn !== pokemon.user_id) {
+            return { playerMessage: { message: "It's not your turn" } }
+        }
+        await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { turn_user_id: opponentPokemon.user_id } })
+
+        const attackedPokemons = await this.prismaService.pokemon.findMany({ where: { teamId: opponentPokemon.teamId } })
+
+        const updatedStats = await Promise.all(attackedPokemons.map(async (enemyPokemon) => {
+            const enemyActualStats = await this.prismaService.stats.findFirst({ where: { id: enemyPokemon.statsId } })
+            const newHpPokemonAttacked = Math.round(enemyActualStats.hp - (playerPokemonStats.specialAttack))
+            return await this.prismaService.stats.update({ where: { id: enemyPokemon.statsId }, data: { hp: newHpPokemonAttacked } })
+        }))
+        await this.prismaService.specialPoints.updateMany({ where: { user_id: pokemon.user_id }, data: { specialAttackPoints: { decrement: 10 } } })
+
+        for (const enemyPokemonStats of updatedStats) {
+            if (enemyPokemonStats.hp < 0) {
+                await this.prismaService.$transaction(async (prisma) => {
+                    for (const attackedPokemon of attackedPokemons) {
+                        if (attackedPokemon.statsId === enemyPokemonStats.id) {
+                            await prisma.pokemon.delete({ where: { id: attackedPokemon.id } });
+                            await prisma.stats.delete({ where: { id: enemyPokemonStats.id } });
+                        }
+                    }
+                });
+            }
+        }
+
+        const pokemonsTeamAttacked = await this.prismaService.pokemon.findMany({ where: { teamId: opponentPokemon.teamId } })
+        if (pokemonsTeamAttacked.length === 0) {
+            await this.prismaService.specialPoints.deleteMany({ where: { user_id: opponentPokemon.user_id } })
+            await this.prismaService.pokemonTeam.delete({ where: { id: opponentPokemon.teamId } })
+            await this.prismaService.player.updateMany({ where: { user_id: playerPokemon.user_id }, data: { wins: { increment: 1 } } })
+            const winnerData = await this.prismaService.player.findFirst({ where: { user_id: playerPokemon.user_id } })
+            await this.prismaService.player.updateMany({ where: { user_id: opponentPokemon.user_id }, data: { losses: { increment: 1 } } })
+            await this.prismaService.game.update({ where: { id: parseInt(gameId) }, data: { winnerId: winnerData.id } })
+            return {
+                pokemon: playerPokemon,
+                opponentMessage: { message: "Your last pokemon has been defeated, you have lost the game" }
+                ,
+                playerMessage: {
+                    message: "You have been defeated last opponent pokemon, you have win the game"
+                }
+            }
+        } else {
+            return {
+                pokemon: playerPokemon,
+                opponentMessage: { message: "Your pokemon has been defeated" }
+                ,
+                playerMessage: {
+                    message: "You have been defeated opponent pokemon"
+                }
             }
         }
     }
