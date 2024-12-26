@@ -9,6 +9,8 @@ import { AuthGuard } from './auth.guard';
 import { AuthService } from './authUser.service';
 import { baseUrl } from './hash/constants';
 import { GameService } from './game.service';
+import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { LoginResponse } from './dto/login-response';
 
 
 @Controller('pokemon-api')
@@ -19,20 +21,27 @@ export class PokemonApiController {
     private readonly GameService: GameService
   ) { }
 
-
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Allows a registered user to log in.' })
   @Post('login')
-  async signIn(@Body() user: any, @Res({ passthrough: true }) response: Response) {
-    const userJwt = await this.authService.signIn(user);
-    //response.cookie('jwt', userJwt)
-    //response.cookie('userEmail', user.email)
-    const SearchUser = await this.pokemonApiService.findOneByEmail(user.email, user.password)
-    const user_id = SearchUser.user_id
-    //console.log(SearchUser)
-    return { access_token: userJwt.access_token, user_id: user_id, email: user.email }
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 200, description: 'User logged in successfully' })
+  async signIn(@Body() user: any): Promise<LoginResponse> {
+    try {
+      const userJwt = await this.authService.signIn(user);
+      const SearchUser = await this.pokemonApiService.findOneByEmail(user.email, user.password);
+      const user_id = SearchUser.user_id;
+      const loginResponse: LoginResponse = { access_token: userJwt.access_token, user_id: user_id, email: user.email };
+      return loginResponse;
+    } catch (e) {
+      throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+    }
   }
 
+  @ApiOperation({ summary: 'Allows the creation of a new user in the system' })
   @Post()
+  @ApiResponse({ status: 500, description: 'INTERNAL SERVER ERROR.' })
+  @ApiResponse({ status: 201, description: 'New user created successfully' })
   async createPlayer(@Body() playerDto: PlayerDto, @Res() res: Response) {
     try {
       const newPlayer: any = await this.pokemonApiService.createPlayer(playerDto);
@@ -48,6 +57,7 @@ export class PokemonApiController {
     }
   }
 
+  @ApiOperation({ summary: 'Create a new Pokemon team for a logged-in player' })
   @UseGuards(AuthGuard)
   @Post('team')
   async createTeam(@Body() pokemonTeamDto: PokemonTeamDto, @Headers('authorization') auth: string, @Res() res: Response) {
@@ -62,6 +72,7 @@ export class PokemonApiController {
     }
   }
 
+  @ApiOperation({ summary: 'Start a new game for a logged-in player' })
   @UseGuards(AuthGuard)
   @Post('startGame')
   async startGame(@Body() playersId: any, @Headers('authorization') auth: string, @Res() res: Response) {
@@ -75,6 +86,7 @@ export class PokemonApiController {
     }
   }
 
+  @ApiOperation({ summary: 'Add a Pokemon to a team for a logged-in player' })
   @UseGuards(AuthGuard)
   @Post('pokemon/:teamId')
   createPokemon(@Body() pokemonData: any, @Param('teamId') teamId: string, @Headers('authorization') auth: string) {
@@ -83,18 +95,28 @@ export class PokemonApiController {
   }
   //Get Methods----------------------------------------------------------------------------------------------------------------------------------------------
   //Get All 
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch all data from all registered players (only available to admin)' })
   @UseGuards(AuthGuard)
   @Get()
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 200, description: 'All registered players data' })
   findAll(@Headers('authorization') auth: string) {
     return this.pokemonApiService.findAll(auth);
   }
   //Get teams by user_id
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch teams data from a logged player' })
   @UseGuards(AuthGuard)
   @Get('teams')
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 200, description: 'All data from logged player' })
   async findTeamsByUserId(@Headers('authorization') auth: string) {
     return await this.pokemonApiService.findTeamsByUserId(auth);
   }
   //Get pokemons by user_id
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch pokemons data from a logged player' })
   @UseGuards(AuthGuard)
   @Get('pokemons')
   async findPokemonsAndHisStatsByUserId(@Headers('authorization') auth: string) {
@@ -108,13 +130,17 @@ export class PokemonApiController {
   }*/
 
   //Get by Player id
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch all data from a logged player' })
   @UseGuards(AuthGuard)
-  @Get('player/:id')
-  async findOne(@Param('id') id: string, @Res() res: Response) {
-    const pokemon = await this.pokemonApiService.findOne(+id);
+  @Get('player')
+  async findOne(@Headers('authorization') auth: string, @Res() res: Response) {
+    const pokemon = await this.pokemonApiService.findOne(auth);
     return res.json(pokemon);
   }
 
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch started game data from a logged player' })
   @UseGuards(AuthGuard)
   @Get('games')
   async getGamesByUser(@Headers('authorization') auth: string, @Res() res: Response) {
@@ -122,6 +148,8 @@ export class PokemonApiController {
     return res.json(games);
   }
 
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch special points data from a logged player' })
   @UseGuards(AuthGuard)
   @Get('specialPoints')
   async getSpecialPoints(@Headers('authorization') auth: string, @Res() res: Response) {

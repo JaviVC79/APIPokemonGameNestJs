@@ -79,13 +79,15 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
   @SubscribeMessage('joinRoom')
   handleJoinRoom(client: CustomSocket, room: string) {
     const numberOfConnectedClients = this.getNumberOfClientsInRoom(room);
-    if (numberOfConnectedClients >= 2) {
+    console.log(numberOfConnectedClients)
+    if (numberOfConnectedClients >= 3) {
       client.disconnect();
       return;
     }
     const clientId = client.handshake.headers['client_id'];
     if (Array.isArray(clientId)) {
       client.disconnect();
+      console.log("clientId es un array")
       return;
     }
     client.client_id = clientId;
@@ -129,7 +131,6 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
 
   @SubscribeMessage('attack')
   async attack(client: Socket, payload: { room: string, message: any }) {
-    console.log("attack")
     const numberOfConnectedClients = this.getNumberOfClientsInRoom(payload.room)
     console.log("numberOfConnectedClients", numberOfConnectedClients)
     if (numberOfConnectedClients < 2) {
@@ -139,9 +140,7 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
       client.emit('attack', { message: "To many clients connected on this room" });
       return
     }
-    console.log("client.rooms)[1]", (Array.from(client.rooms)[1]))
     const attackResponse = await this.gameService.attack(payload.room, payload.message)
-    console.log("ataque")
     // Enviar mensaje al emisor 
     client.emit('attack', { message: attackResponse.playerMessage, pokemon: attackResponse.pokemon });
     // Enviar mensaje a los demás clientes en la sala 
@@ -151,7 +150,6 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
   private getNumberOfClientsInRoom(room: string) {
     const roomInfo = this.server.sockets.adapter.rooms.get(room);
     const numberOfClients = roomInfo ? roomInfo.size : 0;
-    //console.log(`Number of clients in room ${room}: ${numberOfClients}`);
     return numberOfClients;
   }
 
@@ -167,7 +165,6 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
       return
     }
     const defenseResponse = await this.gameService.defense(Array.from(client.rooms)[1], payload.message)
-    console.log("defensa")
     // Enviar mensaje al emisor 
     client.emit('defense', { message: defenseResponse.playerMessage, pokemon: defenseResponse.pokemon });
     // Enviar mensaje a los demás clientes en la sala 
@@ -185,13 +182,62 @@ export class GameSocketGateway implements OnGatewayConnection, OnGatewayDisconne
       return
     }
     const attackAllYourEnemiesResponse = await this.gameService.attackAllYourEnemies(payload.room, payload.message)
-    console.log("attackAllYourEnemies")
     // Enviar mensaje al emisor 
     client.emit('attackAllYourEnemies', { message: attackAllYourEnemiesResponse.playerMessage, pokemon: attackAllYourEnemiesResponse.pokemon });
     // Enviar mensaje a los demás clientes en la sala 
     client.broadcast.to(payload.room).emit('attackAllYourEnemies', { message: attackAllYourEnemiesResponse.opponentMessage, pokemon: attackAllYourEnemiesResponse.pokemon })
   }
 
+  @SubscribeMessage('specialAttack')
+  async specialAttack(client: Socket, payload: { room: string, message: any }) {
+    const numberOfConnectedClients = this.getNumberOfClientsInRoom(payload.room)
+    if (numberOfConnectedClients < 2) {
+      client.emit('specialAttack', { message: "Your opponent is not connected" });
+      return
+    } else if (numberOfConnectedClients > 2) {
+      client.emit('specialAttack', { message: "To many clients connected on this room" });
+      return
+    }
+    const specialAttackResponse = await this.gameService.specialAttack(payload.room, payload.message)
+    // Enviar mensaje al emisor 
+    client.emit('specialAttack', { message: specialAttackResponse.playerMessage, pokemon: specialAttackResponse.pokemon });
+    // Enviar mensaje a los demás clientes en la sala 
+    client.broadcast.to(payload.room).emit('specialAttack', { message: specialAttackResponse.opponentMessage, pokemon: specialAttackResponse.pokemon })
+  }
+
+  @SubscribeMessage('defendAllYourPokemons')
+  async defendAllYourPokemons(client: Socket, payload: { room: string, message: any }) {
+    const numberOfConnectedClients = this.getNumberOfClientsInRoom(payload.room)
+    if (numberOfConnectedClients < 2) {
+      client.emit('defendAllYourPokemons', { message: "Your opponent is not connected" });
+      return
+    } else if (numberOfConnectedClients > 2) {
+      client.emit('defendAllYourPokemons', { message: "To many clients connected on this room" });
+      return
+    }
+    const specialAttackResponse = await this.gameService.defendAllYourPokemons(payload.room, payload.message)
+    // Enviar mensaje al emisor 
+    client.emit('defendAllYourPokemons', { message: specialAttackResponse.playerMessage, pokemon: specialAttackResponse.pokemon });
+    // Enviar mensaje a los demás clientes en la sala 
+    client.broadcast.to(payload.room).emit('defendAllYourPokemons', { message: specialAttackResponse.opponentMessage, pokemon: specialAttackResponse.pokemon })
+  }
+
+  @SubscribeMessage('specialDefense')
+  async specialDefense(client: Socket, payload: { room: string, message: any }) {
+    const numberOfConnectedClients = this.getNumberOfClientsInRoom(payload.room)
+    if (numberOfConnectedClients < 2) {
+      client.emit('specialDefense', { message: "Your opponent is not connected" });
+      return
+    } else if (numberOfConnectedClients > 2) {
+      client.emit('specialDefense', { message: "To many clients connected on this room" });
+      return
+    }
+    const specialDefenseResponse = await this.gameService.specialDefense(payload.room, payload.message)
+    // Enviar mensaje al emisor 
+    client.emit('specialDefense', { message: specialDefenseResponse.playerMessage, pokemon: specialDefenseResponse.pokemon });
+    // Enviar mensaje a los demás clientes en la sala 
+    client.broadcast.to(payload.room).emit('specialDefense', { message: specialDefenseResponse.opponentMessage, pokemon: specialDefenseResponse.pokemon })
+  }
 
 }
 

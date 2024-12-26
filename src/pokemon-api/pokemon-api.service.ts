@@ -10,7 +10,7 @@ import { HashService } from './hash/hash.service';
 import { jwtConstants } from './hash/constants';
 import { JwtService } from '@nestjs/jwt';
 import { Response } from 'express';
-
+import { ResponseBodyPlayerData } from './dto/player-data-response';
 
 
 @Injectable()
@@ -93,11 +93,12 @@ export class PokemonApiService {
   }
   async findAll(auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
+    if (userId != "33316be8-790c-47fd-b8c5-f6aafa7bb00a") throw new UnauthorizedException();
     try {
-      const players = await this.prismaService.player.findMany({ where: { user_id: userId } });
+      const players = await this.prismaService.player.findMany();
       const data = []
       for (let i = 0; i < players.length; i++) {
-        data.push(await this.findOne(players[i].id))
+        data.push(await this.findAllPlayersData(players[i].user_id))
       }
       return { data, status: HttpStatus.OK, message: "Player has been found successfully" }
     } catch (error) {
@@ -106,7 +107,40 @@ export class PokemonApiService {
     }
 
   }
-
+  async findAllPlayersData(userId: string) {
+    try {
+      const playerData = await this.prismaService.player.findMany({ where: { user_id: userId } });
+      const teams = await this.prismaService.pokemonTeam.findMany({ where: { user_id: userId } });
+      const pokemonsArray = await Promise.all(teams.map(async (team) => await this.prismaService.pokemon.findMany({ where: { teamId: team.id } })));
+      const pokemonsData = pokemonsArray.flat(); // Aplanar el array de arrays
+      const stats = await Promise.all(pokemonsData.map(async (pokemon) => await this.prismaService.stats.findUnique({ where: { id: pokemon.statsId } })));
+      if (!playerData) {
+        throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+      }
+      const pokemon = pokemonsData.map((poke, index) => ({
+        ...poke,
+        stats: stats[index]
+      }));
+      const teamsPokemon = teams.map(team => ({
+        ...team,
+        pokemons: pokemon.filter(poke => poke.teamId === team.id)
+      }));
+      const player: ResponseBodyPlayerData[] = [];
+      const playerModificated: any = playerData;
+      const { password, email, ...playerDataWithoutPassword } = playerModificated;
+      player.push({
+        ...playerDataWithoutPassword,
+        teams: teamsPokemon
+      })
+      return { player };
+    } catch (error) {
+      console.log(error);
+      if (error.status === 404) {
+        throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
   async findTeamsByUserId(auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
     try {
@@ -131,10 +165,11 @@ export class PokemonApiService {
     }
   }
 
-  async findOne(id: number) {
+  async findOne(auth: string) {
+    const userId = await this.extractUserIdFromToken(auth)
     try {
-      const playerData = await this.prismaService.player.findUnique({ where: { id: id } });
-      const teams = await this.prismaService.pokemonTeam.findMany({ where: { playerId: id } });
+      const playerData = await this.prismaService.player.findMany({ where: { user_id: userId } });
+      const teams = await this.prismaService.pokemonTeam.findMany({ where: { user_id: userId } });
       const pokemonsArray = await Promise.all(teams.map(async (team) => await this.prismaService.pokemon.findMany({ where: { teamId: team.id } })));
       const pokemonsData = pokemonsArray.flat(); // Aplanar el array de arrays
       const stats = await Promise.all(pokemonsData.map(async (pokemon) => await this.prismaService.stats.findUnique({ where: { id: pokemon.statsId } })));
@@ -149,8 +184,9 @@ export class PokemonApiService {
         ...team,
         pokemons: pokemon.filter(poke => poke.teamId === team.id)
       }));
-      const player = [];
-      const { password, email, ...playerDataWithoutPassword } = playerData;
+      const player: ResponseBodyPlayerData[] = [];
+      const playerModificated: any = playerData;
+      const { password, email, ...playerDataWithoutPassword } = playerModificated;
       player.push({
         ...playerDataWithoutPassword,
         teams: teamsPokemon
@@ -285,12 +321,12 @@ export class PokemonApiService {
           await this.prismaService.game.delete({
             where: { id: gamesInFirst[0].id }
           });
-        
+
           await this.prismaService.game.create({
             data: { player1TeamId: gamesInFirst[0].player2TeamId, user_id1: gamesInFirst[0].user_id2, player2TeamId: null, user_id2: null, turn_user_id: gamesInFirst[0].user_id2 }
           });
         }
-        if (gamesInSecond.length > 0){
+        if (gamesInSecond.length > 0) {
           await this.prismaService.game.update({
             where: { id: gamesInSecond[0].id },
             data: { player2TeamId: null, user_id2: null }
@@ -356,7 +392,7 @@ export class PokemonApiService {
     });
   }
 
-  async extractUserIdFromToken(token: string): Promise<string> {
+  private async extractUserIdFromToken(token: string): Promise<string> {
     const authToken = token.split(' ')[1]
     try {
       const payload = await this.jwtService.verifyAsync(
