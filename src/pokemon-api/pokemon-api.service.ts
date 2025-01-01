@@ -11,6 +11,9 @@ import { jwtConstants } from './hash/constants';
 import { JwtService } from '@nestjs/jwt';
 import { Response } from 'express';
 import { ResponseBodyPlayerData } from './dto/player-data-response';
+import { AuthService } from './authUser.service';
+import { Player } from '@prisma/client';
+import { SendMailService } from './send-mail.service';
 
 
 @Injectable()
@@ -20,6 +23,8 @@ export class PokemonApiService {
   constructor(private prismaService: PrismaService,
     private hashService: HashService,
     private jwtService: JwtService,
+    private authService: AuthService,
+    private sendMailService: SendMailService,
   ) { }
   async createPlayer(playerDto: PlayerDto) {
     if (!playerDto.password || playerDto.password === null || playerDto.password === '' || playerDto.password.length < 8
@@ -47,11 +52,15 @@ export class PokemonApiService {
         }
       })
       const newPlayer = await this.prismaService.player.create({ data: playerDto });
+      if (newPlayer.user_id) {
+        await this.sendMailService.sendEmail(playerDto.email, newPlayer.user_id, newPlayer.nickName)
+      } else { throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR); };
       return newPlayer;
     } catch (error) {
       console.log(error)
     }
   }
+
   async createTeam(pokemonTeamDto: PokemonTeamDto, auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
     try {
@@ -65,6 +74,7 @@ export class PokemonApiService {
       return error;
     }
   }
+
   async createPokemonAndStats(pokemonData: any, auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
     const statsDto: StatsDto = pokemonData[1];
@@ -91,6 +101,7 @@ export class PokemonApiService {
     }
     return { pokemonId: createdPokemon.id, statsId: createdStats.id, status: HttpStatus.CREATED, message: "New pokemon has been created successfully" }
   }
+
   async findAll(auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
     if (userId != "33316be8-790c-47fd-b8c5-f6aafa7bb00a") throw new UnauthorizedException();
@@ -107,6 +118,7 @@ export class PokemonApiService {
     }
 
   }
+
   async findAllPlayersData(userId: string) {
     try {
       const playerData = await this.prismaService.player.findMany({ where: { user_id: userId } });
@@ -141,6 +153,7 @@ export class PokemonApiService {
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
   async findTeamsByUserId(auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
     try {
@@ -150,6 +163,7 @@ export class PokemonApiService {
       console.log(error)
     }
   }
+
   async findPokemonsAndHisStatsByUserId(auth: string) {
     const userId = await this.extractUserIdFromToken(auth)
     try {
@@ -200,6 +214,7 @@ export class PokemonApiService {
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
   async findOneByEmail(email: string, password: string) {
     try {
       const playerData = await this.prismaService.player.findUnique({ where: { email } });
@@ -209,6 +224,17 @@ export class PokemonApiService {
         return playerData;
       }
       return
+    }
+    catch (error) {
+      return error
+    }
+  }
+
+  async findOneByUserId(user_id: string) {
+    try {
+      const playerData = await this.prismaService.player.findFirst({ where: { user_id } });
+      if (!playerData) return
+      return playerData;
     }
     catch (error) {
       return error
@@ -406,6 +432,27 @@ export class PokemonApiService {
       throw new UnauthorizedException();
     }
 
+  }
+
+  async emailVerificationByUserId(user_id: string) {
+    const player: Player = await this.prismaService.player.findFirst({ where: { user_id } });
+    if (!player) throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+    const verifiedPlayer = await this.prismaService.player.update({ where: { id: player.id }, data: { verify_email: true } });
+    if (!verifiedPlayer) throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+    await this.sendMailService.sendEmailVerificationOK(verifiedPlayer.email, verifiedPlayer.nickName);
+    return verifiedPlayer;
+  }
+
+  async login(user: any) {
+    try {
+      const userJwt = await this.authService.signIn(user);
+      const SearchUser = await this.findOneByEmail(user.email, user.password);
+      const user_id = SearchUser.user_id;
+      const loginResponse = { access_token: userJwt.access_token, user_id: user_id, email: user.email };
+      return loginResponse;
+    } catch (e) {
+      throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+    }
   }
 
   /*async findPokemonsAndHisStatsByUserIdAndTeams(auth:string, team:string){

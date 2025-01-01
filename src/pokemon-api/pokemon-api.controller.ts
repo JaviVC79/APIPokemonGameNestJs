@@ -6,19 +6,19 @@ import { PokemonTeamDto } from './dto/pokemon-team-dto';
 import { PokemonTypeEntity } from './enums/pokemon-entity-enum';
 import { Response } from 'express';
 import { AuthGuard } from './auth.guard';
-import { AuthService } from './authUser.service';
 import { baseUrl } from './hash/constants';
 import { GameService } from './game.service';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { LoginResponse } from './dto/login-response';
+import { SendMailService } from './send-mail.service';
 
 
 @Controller('pokemon-api')
 export class PokemonApiController {
   constructor(
     private readonly pokemonApiService: PokemonApiService,
-    private readonly authService: AuthService,
-    private readonly GameService: GameService
+    private readonly GameService: GameService,
+    private readonly sendMailService: SendMailService,
   ) { }
 
   @HttpCode(HttpStatus.OK)
@@ -27,15 +27,7 @@ export class PokemonApiController {
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 200, description: 'User logged in successfully' })
   async signIn(@Body() user: any): Promise<LoginResponse> {
-    try {
-      const userJwt = await this.authService.signIn(user);
-      const SearchUser = await this.pokemonApiService.findOneByEmail(user.email, user.password);
-      const user_id = SearchUser.user_id;
-      const loginResponse: LoginResponse = { access_token: userJwt.access_token, user_id: user_id, email: user.email };
-      return loginResponse;
-    } catch (e) {
-      throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
-    }
+    return await this.pokemonApiService.login(user);
   }
 
   @ApiOperation({ summary: 'Allows the creation of a new user in the system' })
@@ -44,7 +36,8 @@ export class PokemonApiController {
   @ApiResponse({ status: 201, description: 'New user created successfully' })
   async createPlayer(@Body() playerDto: PlayerDto, @Res() res: Response) {
     try {
-      const newPlayer: any = await this.pokemonApiService.createPlayer(playerDto);
+      const newPlayer = await this.pokemonApiService.createPlayer(playerDto);
+      //if (newPlayer.user_id) await this.sendMailService.sendEmail(playerDto.email, newPlayer.user_id, newPlayer.nickName);
       res.status(HttpStatus.CREATED)
         .location(`${baseUrl}`)
         .json(newPlayer);
@@ -94,6 +87,14 @@ export class PokemonApiController {
     return this.pokemonApiService.createPokemonAndStats(pokemonData, auth);
   }
   //Get Methods----------------------------------------------------------------------------------------------------------------------------------------------
+
+  @Get('email_verification/:user_id')
+  async emailVerificationByUserId(@Param('user_id') user_id: string) {
+    const verifiedPlayer = await this.pokemonApiService.emailVerificationByUserId(user_id);
+    if (!verifiedPlayer) throw new HttpException('Not Found', HttpStatus.NOT_FOUND)
+    return { message: 'Email verification sent successfully' };
+  }
+
   //Get All 
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Fetch all data from all registered players (only available to admin)' })

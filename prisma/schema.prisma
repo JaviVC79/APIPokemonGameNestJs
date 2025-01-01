@@ -20,6 +20,7 @@ model Player {
   wins            Int
   losses          Int
   draws           Int
+  verify_email    Boolean       @default(false)
   pokemonTeams    PokemonTeam[]
   wonGames        Game[]        @relation("WonGames")
 }
