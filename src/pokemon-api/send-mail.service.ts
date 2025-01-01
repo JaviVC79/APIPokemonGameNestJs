@@ -16,7 +16,7 @@ export class SendMailService {
             html: `
             <h1>Welcome to Pokemon Game! ${playerName}</h1>
             <p>Please click the following link to verify your email address:</p>
-            ${baseUrl}/email_verification/${user_id}"
+            https://apipokemongamenestjs.onrender.com/pokemon-api/email_verification/${user_id}"
             `,
         });
         if (error) {
