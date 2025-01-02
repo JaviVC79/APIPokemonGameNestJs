@@ -10,7 +10,6 @@ import { baseUrl } from './hash/constants';
 import { GameService } from './game.service';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { LoginResponse } from './dto/login-response';
-import { SendMailService } from './send-mail.service';
 
 
 @Controller('pokemon-api')
@@ -18,7 +17,6 @@ export class PokemonApiController {
   constructor(
     private readonly pokemonApiService: PokemonApiService,
     private readonly GameService: GameService,
-    private readonly sendMailService: SendMailService,
   ) { }
 
   @HttpCode(HttpStatus.OK)
@@ -30,6 +28,28 @@ export class PokemonApiController {
     return await this.pokemonApiService.login(user);
   }
 
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Allows a registered user changes his password.' })
+  @Post('newPassword')
+  @ApiResponse({ status: 500, description: 'INTERNAL SERVER ERROR.' })
+  @ApiResponse({ status: 200, description: 'User password changed successfully' })
+  async newPassword(@Body() email: any): Promise<any> {
+    const response = await this.pokemonApiService.newPassword(email.email);
+    console.log(response)
+    return response;
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Allows a registered user changes his password.' })
+  @Post('getNewPassword')
+  @ApiResponse({ status: 500, description: 'INTERNAL SERVER ERROR.' })
+  @ApiResponse({ status: 200, description: 'User password changed successfully' })
+  async getNewPassword(@Body() userData: { email: string, password: string}): Promise<any> {
+    const response = await this.pokemonApiService.getNewPassword(userData);
+    console.log(response)
+    return response;
+  }
+
   @ApiOperation({ summary: 'Allows the creation of a new user in the system' })
   @Post()
   @ApiResponse({ status: 500, description: 'INTERNAL SERVER ERROR.' })
@@ -37,7 +57,6 @@ export class PokemonApiController {
   async createPlayer(@Body() playerDto: PlayerDto, @Res() res: Response) {
     try {
       const newPlayer = await this.pokemonApiService.createPlayer(playerDto);
-      //if (newPlayer.user_id) await this.sendMailService.sendEmail(playerDto.email, newPlayer.user_id, newPlayer.nickName);
       res.status(HttpStatus.CREATED)
         .location(`${baseUrl}`)
         .json(newPlayer);

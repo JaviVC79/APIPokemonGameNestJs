@@ -455,6 +455,39 @@ export class PokemonApiService {
     }
   }
 
+  async newPassword(email: string) {
+    const password = this.generatePassword(12);
+    try {
+      const hashedPassword = await this.hashService.getPasswordHash(password);
+      //return hashedPassword
+      await this.prismaService.player.update({ where: { email }, data: { password: hashedPassword } });
+      await this.sendMailService.sendNewPassword(email, password)
+    } catch (error) {
+      return error
+    }
+  }
+
+  private generatePassword(length: number): string {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+[]{}|;:,.<>?';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      const index = Math.floor(Math.random() * characters.length);
+      password += characters[index];
+    }
+    return password;
+  }
+
+  async getNewPassword(userData: { email: string, password: string }) {
+    try {
+      const hashedPassword = await this.hashService.getPasswordHash(userData.password);
+      await this.prismaService.player.update({ where: { email: userData.email }, data: { password: hashedPassword } });
+      await this.sendMailService.sendNewPassword(userData.email, userData.password)
+      return { status: HttpStatus.OK, message: "Password has been changed successfully" }
+    } catch (error) {
+      return error
+    }
+  }
+
   /*async findPokemonsAndHisStatsByUserIdAndTeams(auth:string, team:string){
     const userId = await this.extractUserIdFromToken(auth)
     try {

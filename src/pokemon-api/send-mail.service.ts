@@ -5,6 +5,7 @@ import { baseUrl } from './hash/constants';
 @Injectable()
 export class SendMailService {
 
+
     constructor() { }
 
     async sendEmail(recipient: string, user_id: string, playerName: string) {
@@ -45,6 +46,25 @@ export class SendMailService {
             console.log(data)
             return data
         }
-      }
+    }
+
+    async sendNewPassword(recipient: string, password: string) {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const { data, error } = await resend.emails.send({
+            from: "noreply@javivc.site",
+            to: [recipient],
+            subject: `Pokemon Game new password`,
+            html: `
+            <h2>Your new password is: ${password}</h2>
+            `,
+        });
+        if (error) {
+            console.log(error)
+            return error
+        } else {
+            console.log(data)
+            return data
+        }
+    }
 
 }
