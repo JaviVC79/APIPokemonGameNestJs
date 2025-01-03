@@ -28,7 +28,7 @@ export class PokemonApiController {
     return await this.pokemonApiService.login(user);
   }
 
-  @HttpCode(HttpStatus.OK)
+ /* @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Allows a registered user changes his password.' })
   @Post('newPassword')
   @ApiResponse({ status: 500, description: 'INTERNAL SERVER ERROR.' })
@@ -37,14 +37,14 @@ export class PokemonApiController {
     const response = await this.pokemonApiService.newPassword(email.email);
     console.log(response)
     return response;
-  }
+  }*/
 
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Allows a registered user changes his password.' })
   @Post('getNewPassword')
   @ApiResponse({ status: 500, description: 'INTERNAL SERVER ERROR.' })
   @ApiResponse({ status: 200, description: 'User password changed successfully' })
-  async getNewPassword(@Body() userData: { email: string, password: string}): Promise<any> {
+  async getNewPassword(@Body() userData: { email: string, password: string }): Promise<any> {
     const response = await this.pokemonApiService.getNewPassword(userData);
     console.log(response)
     return response;
@@ -110,6 +110,13 @@ export class PokemonApiController {
   @Get('email_verification/:user_id')
   async emailVerificationByUserId(@Param('user_id') user_id: string) {
     const verifiedPlayer = await this.pokemonApiService.emailVerificationByUserId(user_id);
+    if (!verifiedPlayer) throw new HttpException('Not Found', HttpStatus.NOT_FOUND)
+    return { message: 'Email verification sent successfully' };
+  }
+
+  @Get('confirm_new_password/:user_id/:newPassword')
+  async confirmNewPassword(@Param('user_id') user_id: string, @Param('newPassword') newPassword: string) {
+    const verifiedPlayer = await this.pokemonApiService.confirmNewPassword(user_id, newPassword);
     if (!verifiedPlayer) throw new HttpException('Not Found', HttpStatus.NOT_FOUND)
     return { message: 'Email verification sent successfully' };
   }

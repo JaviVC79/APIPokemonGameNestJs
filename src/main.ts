@@ -8,7 +8,7 @@ async function bootstrap() {
     origin: ['https://4200-idx-angular-app-1721758154447.cluster-23wp6v3w4jhzmwncf7crloq3kw.cloudworkstations.dev',
       'https://3000-idx-pokemongameapi-1725292582953.cluster-rcyheetymngt4qx5fpswua3ry4.cloudworkstations.dev/api-documentation',
       `${process.env.PORT}`,
-      'https://pokemon-game-frontend-ck45okuez-javier-vilaplanas-projects.vercel.app',
+      'https://pokemon-game-frontend-kdrluxvqi-javier-vilaplanas-projects.vercel.app',
       'https://pokemon-game-frontend-git-master-javier-vilaplanas-projects.vercel.app',
       'https://pokemon-game-frontend.vercel.app'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',

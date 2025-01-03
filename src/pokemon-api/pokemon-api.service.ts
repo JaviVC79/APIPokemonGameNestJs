@@ -455,7 +455,7 @@ export class PokemonApiService {
     }
   }
 
-  async newPassword(email: string) {
+  /*async newPassword(email: string) {
     const password = this.generatePassword(12);
     try {
       const hashedPassword = await this.hashService.getPasswordHash(password);
@@ -465,9 +465,9 @@ export class PokemonApiService {
     } catch (error) {
       return error
     }
-  }
+  }*/
 
-  private generatePassword(length: number): string {
+  /*private generatePassword(length: number): string {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+[]{}|;:,.<>?';
     let password = '';
     for (let i = 0; i < length; i++) {
@@ -475,18 +475,33 @@ export class PokemonApiService {
       password += characters[index];
     }
     return password;
-  }
+  }*/
 
   async getNewPassword(userData: { email: string, password: string }) {
     try {
-      const hashedPassword = await this.hashService.getPasswordHash(userData.password);
-      await this.prismaService.player.update({ where: { email: userData.email }, data: { password: hashedPassword } });
-      await this.sendMailService.sendNewPassword(userData.email, userData.password)
-      return { status: HttpStatus.OK, message: "Password has been changed successfully" }
+      const registeredUser = await this.prismaService.player.findFirst({ where: { email: userData.email } });
+      if (!registeredUser) throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
+      if (registeredUser.verify_email === false) throw new HttpException('Email not verified', HttpStatus.BAD_REQUEST);
+      await this.sendMailService.sendNewPassword(userData.email, userData.password, registeredUser.user_id)
+      return { status: HttpStatus.OK, message: "Verification email sent successfully" }
     } catch (error) {
       return error
     }
   }
+
+  async confirmNewPassword(user_id: string, newPassword: string) {
+    try {
+      const hashedPassword = await this.hashService.getPasswordHash(newPassword);
+      await this.prismaService.player.updateMany({ where: { user_id }, data: { password: hashedPassword } });
+      const user = await this.prismaService.player.findFirst({ where: { user_id } });
+      await this.sendMailService.sendChangePasswordVerification(user);
+      return { status: HttpStatus.OK, message: "Password updated successfully" }
+    } catch (error) {
+      return error
+    }
+  }
+
+
 
   /*async findPokemonsAndHisStatsByUserIdAndTeams(auth:string, team:string){
     const userId = await this.extractUserIdFromToken(auth)

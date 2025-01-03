@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Resend } from 'resend';
 import { baseUrl } from './hash/constants';
+import { Player } from '@prisma/client';
 
 @Injectable()
 export class SendMailService {
+
 
 
     constructor() { }
@@ -48,14 +50,19 @@ export class SendMailService {
         }
     }
 
-    async sendNewPassword(recipient: string, password: string) {
+    async sendNewPassword(recipient: string, password: string, user_id: string) {
         const resend = new Resend(process.env.RESEND_API_KEY);
         const { data, error } = await resend.emails.send({
             from: "noreply@javivc.site",
             to: [recipient],
             subject: `Pokemon Game new password`,
             html: `
-            <h2>Your new password is: ${password}</h2>
+            <p>Dear [User's Name],</p> 
+            <p>We wanted to inform you that the password for your account was successfully changed on [Date and Time]. If you initiated this change, no further action is required.</p> 
+            <p>However, if you did not request this change, please ignore this email and immediately review your account for any unauthorized activity. We recommend updating your password and enabling two-factor authentication to enhance your account security.</p> 
+            <p>If you request this change, please click the following link to verify your password changes:</p>
+            https://apipokemongamenestjs.onrender.com/pokemon-api/confirm_new_password/${user_id}/${password}"
+            <p>Best regards,<br>Pokemon Card Game Support Team</p>
             `,
         });
         if (error) {
@@ -66,5 +73,23 @@ export class SendMailService {
             return data
         }
     }
-
+    async sendChangePasswordVerification(user: Player) {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const { data, error } = await resend.emails.send({
+            from: "noreply@javivc.site",
+            to: [user.email],
+            subject: `Pokemon Card Game password changes verifification done`,
+            html: `
+            <h2>${user.nickName}, your password has been changed successfully!, enjoy the game!!</h2>
+            <p>Your new password is ${user.password}</p>
+            `,
+        });
+        if (error) {
+            console.log(error)
+            return error
+        } else {
+            console.log(data)
+            return data
+        }
+    }
 }
