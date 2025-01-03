@@ -73,7 +73,7 @@ export class SendMailService {
             return data
         }
     }
-    async sendChangePasswordVerification(user: Player) {
+    async sendChangePasswordVerification(user: Player, newPassword: string) {
         const resend = new Resend(process.env.RESEND_API_KEY);
         const { data, error } = await resend.emails.send({
             from: "noreply@javivc.site",
@@ -81,7 +81,7 @@ export class SendMailService {
             subject: `Pokemon Card Game password changes verifification done`,
             html: `
             <h2>${user.nickName}, your password has been changed successfully!, enjoy the game!!</h2>
-            <p>Your new password is ${user.password}</p>
+            <p>Your new password is ${newPassword}</p>
             `,
         });
         if (error) {

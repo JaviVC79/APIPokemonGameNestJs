@@ -494,7 +494,7 @@ export class PokemonApiService {
       const hashedPassword = await this.hashService.getPasswordHash(newPassword);
       await this.prismaService.player.updateMany({ where: { user_id }, data: { password: hashedPassword } });
       const user = await this.prismaService.player.findFirst({ where: { user_id } });
-      await this.sendMailService.sendChangePasswordVerification(user);
+      await this.sendMailService.sendChangePasswordVerification(user, newPassword);
       return { status: HttpStatus.OK, message: "Password updated successfully" }
     } catch (error) {
       return error
